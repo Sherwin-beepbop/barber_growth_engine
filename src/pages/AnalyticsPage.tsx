@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useBusiness } from '../contexts/BusinessContext';
 import { supabase } from '../lib/supabase';
-import { TrendingUp, Users, DollarSign, Calendar, ArrowUp, ArrowDown } from 'lucide-react';
+import { TrendingUp, Users, DollarSign, Calendar, ArrowUp, ArrowDown, UserX, Repeat } from 'lucide-react';
+
+const INACTIVE_WEEKS_THRESHOLD = 8;
 
 interface AnalyticsData {
   dailyRevenue: { date: string; amount: number }[];
@@ -9,7 +11,9 @@ interface AnalyticsData {
     total: number;
     new: number;
     returning: number;
+    inactive: number;
     retentionRate: number;
+    repeatRate: number;
   };
   topCustomers: {
     name: string;
@@ -27,7 +31,7 @@ export default function AnalyticsPage() {
   const { business } = useBusiness();
   const [analytics, setAnalytics] = useState<AnalyticsData>({
     dailyRevenue: [],
-    customerStats: { total: 0, new: 0, returning: 0, retentionRate: 0 },
+    customerStats: { total: 0, new: 0, returning: 0, inactive: 0, retentionRate: 0, repeatRate: 0 },
     topCustomers: [],
     weeklyComparison: { thisWeek: 0, lastWeek: 0, change: 0 }
   });
@@ -70,18 +74,83 @@ export default function AnalyticsPage() {
 
       const { data: allCustomers } = await supabase
         .from('customers')
-        .select('id, name, total_spent, total_visits, created_at')
+        .select('id, name, total_spent, total_visits, created_at, last_visit_date')
         .eq('business_id', business.id);
 
       const thirtyDaysAgo = new Date(today);
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const newCustomers = allCustomers?.filter(
-        c => new Date(c.created_at) > thirtyDaysAgo
-      ).length || 0;
-      const returningCustomers = allCustomers?.filter(c => c.total_visits > 1).length || 0;
+      const inactiveThresholdDate = new Date(today);
+      inactiveThresholdDate.setDate(inactiveThresholdDate.getDate() - (INACTIVE_WEEKS_THRESHOLD * 7));
+
+      const { data: completedAppointments } = await supabase
+        .from('appointments')
+        .select('customer_id, appointment_date')
+        .eq('business_id', business.id)
+        .eq('status', 'completed')
+        .order('appointment_date');
+
+      const firstAppointmentMap = new Map<string, string>();
+      completedAppointments?.forEach(apt => {
+        if (!firstAppointmentMap.has(apt.customer_id)) {
+          firstAppointmentMap.set(apt.customer_id, apt.appointment_date);
+        }
+      });
+
+      const periodStart = new Date(today);
+      periodStart.setDate(periodStart.getDate() - daysBack);
+
+      let newCustomersCount = 0;
+      let returningCustomersCount = 0;
+      let inactiveCustomersCount = 0;
+
+      allCustomers?.forEach(customer => {
+        const firstAppointment = firstAppointmentMap.get(customer.id);
+
+        if (firstAppointment) {
+          const firstApptDate = new Date(firstAppointment);
+
+          if (firstApptDate >= periodStart) {
+            newCustomersCount++;
+          } else {
+            const hasCompletedInPeriod = completedAppointments?.some(
+              apt => apt.customer_id === customer.id && new Date(apt.appointment_date) >= periodStart
+            );
+            if (hasCompletedInPeriod) {
+              returningCustomersCount++;
+            }
+          }
+        }
+
+        if (customer.last_visit_date) {
+          const lastVisit = new Date(customer.last_visit_date);
+          if (lastVisit < inactiveThresholdDate) {
+            inactiveCustomersCount++;
+          }
+        }
+      });
+
       const totalCustomers = allCustomers?.length || 0;
-      const retentionRate = totalCustomers > 0 ? (returningCustomers / totalCustomers) * 100 : 0;
+
+      const customersWithMultipleVisits = completedAppointments
+        ? new Set(
+            completedAppointments
+              .map(a => a.customer_id)
+              .filter((id, index, arr) => arr.indexOf(id) !== arr.lastIndexOf(id))
+          ).size
+        : 0;
+
+      const retentionRate = totalCustomers > 0
+        ? (customersWithMultipleVisits / totalCustomers) * 100
+        : 0;
+
+      const customersWithCompletedAppointments = new Set(
+        completedAppointments?.map(a => a.customer_id) || []
+      ).size;
+
+      const repeatRate = customersWithCompletedAppointments > 0
+        ? (customersWithMultipleVisits / customersWithCompletedAppointments) * 100
+        : 0;
 
       const topCustomers = (allCustomers || [])
         .sort((a, b) => b.total_spent - a.total_spent)
@@ -122,9 +191,11 @@ export default function AnalyticsPage() {
         dailyRevenue,
         customerStats: {
           total: totalCustomers,
-          new: newCustomers,
-          returning: returningCustomers,
-          retentionRate: Math.round(retentionRate)
+          new: newCustomersCount,
+          returning: returningCustomersCount,
+          inactive: inactiveCustomersCount,
+          retentionRate: Math.round(retentionRate),
+          repeatRate: Math.round(repeatRate)
         },
         topCustomers,
         weeklyComparison: {
@@ -206,6 +277,7 @@ export default function AnalyticsPage() {
           </div>
           <p className="text-zinc-400 text-sm mb-1">This Week Revenue</p>
           <p className="text-3xl font-bold text-white">€{analytics.weeklyComparison.thisWeek.toFixed(2)}</p>
+          <p className="text-zinc-500 text-xs mt-2">From completed appointments</p>
         </div>
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
@@ -216,26 +288,29 @@ export default function AnalyticsPage() {
           </div>
           <p className="text-zinc-400 text-sm mb-1">Total Customers</p>
           <p className="text-3xl font-bold text-white">{analytics.customerStats.total}</p>
+          <p className="text-zinc-500 text-xs mt-2">Active customer base</p>
         </div>
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-purple-500" />
+            <div className="w-10 h-10 bg-red-500/10 rounded-lg flex items-center justify-center">
+              <UserX className="w-5 h-5 text-red-500" />
             </div>
           </div>
-          <p className="text-zinc-400 text-sm mb-1">New Customers (30d)</p>
-          <p className="text-3xl font-bold text-white">{analytics.customerStats.new}</p>
+          <p className="text-zinc-400 text-sm mb-1">Inactive Customers</p>
+          <p className="text-3xl font-bold text-white">{analytics.customerStats.inactive}</p>
+          <p className="text-zinc-500 text-xs mt-2">Not visited in {INACTIVE_WEEKS_THRESHOLD}+ weeks</p>
         </div>
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="w-10 h-10 bg-amber-500/10 rounded-lg flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-amber-500" />
+              <Repeat className="w-5 h-5 text-amber-500" />
             </div>
           </div>
-          <p className="text-zinc-400 text-sm mb-1">Retention Rate</p>
-          <p className="text-3xl font-bold text-white">{analytics.customerStats.retentionRate}%</p>
+          <p className="text-zinc-400 text-sm mb-1">Repeat Rate</p>
+          <p className="text-3xl font-bold text-white">{analytics.customerStats.repeatRate}%</p>
+          <p className="text-zinc-500 text-xs mt-2">Customers with 2+ visits</p>
         </div>
       </div>
 
@@ -272,12 +347,15 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-          <h2 className="text-xl font-semibold text-white mb-6">Customer Distribution</h2>
+          <h2 className="text-xl font-semibold text-white mb-6">Customer Insights</h2>
 
           <div className="space-y-4">
             <div className="p-4 bg-zinc-800 rounded-lg">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-zinc-300">New Customers</span>
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-blue-500" />
+                  <span className="text-zinc-300">New Customers</span>
+                </div>
                 <span className="text-white font-semibold">{analytics.customerStats.new}</span>
               </div>
               <div className="h-2 bg-zinc-700 rounded-full overflow-hidden">
@@ -290,11 +368,15 @@ export default function AnalyticsPage() {
                   }}
                 />
               </div>
+              <p className="text-zinc-500 text-xs mt-2">First completed visit in period</p>
             </div>
 
             <div className="p-4 bg-zinc-800 rounded-lg">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-zinc-300">Returning Customers</span>
+                <div className="flex items-center gap-2">
+                  <Repeat className="w-4 h-4 text-emerald-500" />
+                  <span className="text-zinc-300">Returning Customers</span>
+                </div>
                 <span className="text-white font-semibold">{analytics.customerStats.returning}</span>
               </div>
               <div className="h-2 bg-zinc-700 rounded-full overflow-hidden">
@@ -307,13 +389,43 @@ export default function AnalyticsPage() {
                   }}
                 />
               </div>
+              <p className="text-zinc-500 text-xs mt-2">Existing customers who visited in period</p>
+            </div>
+
+            <div className="p-4 bg-zinc-800 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <UserX className="w-4 h-4 text-red-500" />
+                  <span className="text-zinc-300">Inactive Customers</span>
+                </div>
+                <span className="text-white font-semibold">{analytics.customerStats.inactive}</span>
+              </div>
+              <div className="h-2 bg-zinc-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-red-500 rounded-full"
+                  style={{
+                    width: `${analytics.customerStats.total > 0
+                      ? (analytics.customerStats.inactive / analytics.customerStats.total) * 100
+                      : 0}%`
+                  }}
+                />
+              </div>
+              <p className="text-zinc-500 text-xs mt-2">Need winback campaign</p>
             </div>
 
             <div className="p-4 bg-gradient-to-br from-amber-500/10 to-amber-600/10 border border-amber-500/20 rounded-lg">
-              <p className="text-zinc-300 text-sm mb-1">Overall Retention</p>
-              <p className="text-3xl font-bold text-amber-500">{analytics.customerStats.retentionRate}%</p>
-              <p className="text-zinc-400 text-xs mt-1">
-                of customers return for multiple visits
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-zinc-300 text-sm mb-1">Repeat Customer Rate</p>
+                  <p className="text-3xl font-bold text-amber-500">{analytics.customerStats.repeatRate}%</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-zinc-300 text-sm mb-1">Retention Rate</p>
+                  <p className="text-2xl font-bold text-amber-400">{analytics.customerStats.retentionRate}%</p>
+                </div>
+              </div>
+              <p className="text-zinc-400 text-xs">
+                {analytics.customerStats.repeatRate}% of served customers return • Overall {analytics.customerStats.retentionRate}% retention
               </p>
             </div>
           </div>
