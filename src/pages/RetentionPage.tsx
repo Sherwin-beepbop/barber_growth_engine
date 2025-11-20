@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useBusiness } from '../contexts/BusinessContext';
 import { supabase, Database } from '../lib/supabase';
-import { Repeat, MessageSquare, Clock, Star, Target, Settings } from 'lucide-react';
+import { Repeat, MessageSquare, Clock, Star, Target, Settings, Play, CheckCircle, AlertCircle } from 'lucide-react';
 
 type RetentionFlow = Database['public']['Tables']['retention_flows']['Row'];
+
+interface FlowResult {
+  flowId: string;
+  success: boolean;
+  messagesCreated?: number;
+  error?: string;
+}
 
 const flowConfigs = {
   winback: {
@@ -37,6 +44,8 @@ export default function RetentionPage() {
   const [flows, setFlows] = useState<RetentionFlow[]>([]);
   const [editingFlow, setEditingFlow] = useState<RetentionFlow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [runningFlows, setRunningFlows] = useState<Set<string>>(new Set());
+  const [flowResults, setFlowResults] = useState<Map<string, FlowResult>>(new Map());
 
   useEffect(() => {
     if (business) {
@@ -114,6 +123,71 @@ export default function RetentionPage() {
     }
   };
 
+  const runFlow = async (flow: RetentionFlow) => {
+    if (!flow.id || !flow.enabled || !business) return;
+
+    setRunningFlows(prev => new Set(prev).add(flow.id));
+
+    const newResults = new Map(flowResults);
+    newResults.delete(flow.id);
+    setFlowResults(newResults);
+
+    try {
+      let result: any;
+
+      if (flow.flow_type === 'thank_you') {
+        setFlowResults(prev => new Map(prev).set(flow.id, {
+          flowId: flow.id,
+          success: false,
+          error: 'Thank You flow runs automatically when appointments are completed'
+        }));
+        return;
+      }
+
+      const functionName = flow.flow_type === 'gap_fill'
+        ? 'run_quiet_day_flow'
+        : `run_${flow.flow_type}_flow`;
+
+      const { data, error } = await supabase.rpc(functionName, {
+        p_business_id: business.id,
+        p_flow_id: flow.id
+      });
+
+      if (error) throw error;
+
+      result = data as { success: boolean; messages_created: number; error?: string };
+
+      setFlowResults(prev => new Map(prev).set(flow.id, {
+        flowId: flow.id,
+        success: result.success,
+        messagesCreated: result.messages_created,
+        error: result.error
+      }));
+
+      setTimeout(() => {
+        setFlowResults(prev => {
+          const updated = new Map(prev);
+          updated.delete(flow.id);
+          return updated;
+        });
+      }, 10000);
+
+    } catch (error: any) {
+      console.error('Error running flow:', error);
+      setFlowResults(prev => new Map(prev).set(flow.id, {
+        flowId: flow.id,
+        success: false,
+        error: error.message || 'Failed to run flow'
+      }));
+    } finally {
+      setRunningFlows(prev => {
+        const updated = new Set(prev);
+        updated.delete(flow.id);
+        return updated;
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-8">
@@ -140,6 +214,8 @@ export default function RetentionPage() {
         {flows.map((flow) => {
           const config = flowConfigs[flow.flow_type as keyof typeof flowConfigs];
           const Icon = config.icon;
+          const isRunning = runningFlows.has(flow.id);
+          const result = flowResults.get(flow.id);
 
           return (
             <div
@@ -179,10 +255,45 @@ export default function RetentionPage() {
                         )}
                       </div>
                     )}
+
+                    {result && (
+                      <div className={`mt-3 p-3 rounded-lg flex items-start gap-2 ${
+                        result.success
+                          ? 'bg-emerald-500/10 border border-emerald-500/20'
+                          : 'bg-red-500/10 border border-red-500/20'
+                      }`}>
+                        {result.success ? (
+                          <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                        )}
+                        <div className="flex-1">
+                          <p className={`font-medium ${result.success ? 'text-emerald-500' : 'text-red-500'}`}>
+                            {result.success
+                              ? `Success! ${result.messagesCreated} message${result.messagesCreated !== 1 ? 's' : ''} created`
+                              : 'Failed to run flow'}
+                          </p>
+                          {result.error && (
+                            <p className="text-zinc-400 text-sm mt-1">{result.error}</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
+                  {flow.enabled && flow.id && (
+                    <button
+                      onClick={() => runFlow(flow)}
+                      disabled={isRunning || !flow.enabled}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+                    >
+                      <Play className={`w-4 h-4 ${isRunning ? 'animate-pulse' : ''}`} />
+                      {isRunning ? 'Running...' : 'Run Flow Now'}
+                    </button>
+                  )}
+
                   <button
                     onClick={() => setEditingFlow(flow)}
                     className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
