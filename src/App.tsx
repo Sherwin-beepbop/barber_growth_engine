@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage';
 import BookingsPage from './pages/BookingsPage';
 import CustomersPage from './pages/CustomersPage';
 import RetentionPage from './pages/RetentionPage';
+import MessagesPage from './pages/MessagesPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import SettingsPage from './pages/SettingsPage';
 import Layout from './components/Layout';
@@ -45,6 +46,8 @@ function AppContent() {
         return <CustomersPage />;
       case 'retention':
         return <RetentionPage />;
+      case 'messages':
+        return <MessagesPage />;
       case 'analytics':
         return <AnalyticsPage />;
       case 'settings':

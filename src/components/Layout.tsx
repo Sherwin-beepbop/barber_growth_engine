@@ -7,7 +7,8 @@ import {
   TrendingUp,
   Settings,
   LogOut,
-  Scissors
+  Scissors,
+  MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useBusiness } from '../contexts/BusinessContext';
@@ -23,6 +24,7 @@ const navItems = [
   { id: 'bookings', label: 'Bookings', icon: Calendar },
   { id: 'customers', label: 'Customers', icon: Users },
   { id: 'retention', label: 'Retention Engine', icon: Repeat },
+  { id: 'messages', label: 'Messages Log', icon: MessageSquare },
   { id: 'analytics', label: 'Analytics', icon: TrendingUp },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
