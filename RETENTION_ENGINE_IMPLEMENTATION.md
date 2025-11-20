@@ -100,10 +100,26 @@ Added interactive flow execution capabilities:
   "interval_weeks": 3
 }
 ```
-**Customer Selection:**
-- last_visit_date between (today - interval ± 3 days)
+**Customer Selection (Per-Customer Interval Support):**
+- **Per-Customer Logic**: Each customer can have their own `average_interval_weeks` value
+  - If customer.average_interval_weeks is SET: Use that specific value for the customer
+  - If customer.average_interval_weeks is NULL: Fall back to business.default_reminder_interval_weeks
+  - If both are NULL: Use default of 3 weeks
+- last_visit_date between (today - customer's_interval ± 3 days)
 - No future appointments scheduled
 - No recent freshness messages (within 7 days)
+
+**Example Scenarios:**
+- Customer A with 2-week interval: Gets reminder ~14 days after last visit
+- Customer B with 4-week interval: Gets reminder ~28 days after last visit
+- Customer C with no custom interval: Uses business default (e.g., 3 weeks)
+
+**Managing Customer Intervals:**
+1. Navigate to Customers page
+2. Click on a customer to open their detail view
+3. Click the edit icon (pencil) next to "Avg Interval"
+4. Enter custom interval in weeks (1-52) or leave empty for auto
+5. Click the check icon to save
 
 ### Thank You Flow
 **Automatic Trigger:**
@@ -306,6 +322,113 @@ All queries are filtered by the current business's `business_id`, ensuring users
 - Filter by channel to compare WhatsApp vs SMS vs Email usage
 - Helps optimize channel selection for future campaigns
 
+## Customer Interval Management
+
+The Retention Engine now supports per-customer interval customization, allowing barbers to set individual reminder schedules for each customer.
+
+### Overview
+
+Instead of using a one-size-fits-all reminder interval, barbers can now customize when each customer should receive freshness reminders based on their individual visit patterns.
+
+### Database Field
+
+**customers.average_interval_weeks** (integer, nullable)
+- Stores the custom interval in weeks for each customer
+- If NULL, the system falls back to business.default_reminder_interval_weeks
+- Range: 1-52 weeks
+
+### User Interface
+
+#### Viewing Interval
+In the customer detail modal, the "Avg Interval" field shows:
+- The custom interval if set (e.g., "4 weeks")
+- "Auto" if using business default
+
+#### Editing Interval
+1. Click the customer's name in the Customers list to open details
+2. Find the "Avg Interval" card
+3. Click the amber pencil/edit icon
+4. Enter a number (1-52) or leave empty for auto
+5. Click the green check icon to save
+
+**UI Features:**
+- Inline editing with number input
+- Visual feedback with edit/check icons
+- Placeholder shows "Auto" when empty
+- Helper text: "Leave empty to use business default"
+- Consistent with dark mode barbershop styling
+
+### How It Works
+
+#### Freshness Flow Logic (Updated)
+
+When the Freshness flow runs:
+
+1. **Load Default Interval**
+   - Check flow's trigger_condition.interval_weeks
+   - If not set, use business.default_reminder_interval_weeks
+   - If still not set, use 3 weeks as hardcoded default
+
+2. **For Each Customer**
+   - Check if customer.average_interval_weeks is set
+   - If SET: Use customer's specific interval
+   - If NULL: Use the default from step 1
+
+3. **Calculate Target Window**
+   - Target date = last_visit_date + customer's_interval
+   - Window = ± 3 days from target date
+   - If today falls within window, create reminder message
+
+#### Example Flow Execution
+
+**Business Default:** 3 weeks
+
+**Customers:**
+- Alice (custom: 2 weeks, last visit: 14 days ago) → **Gets Reminder** ✓
+- Bob (custom: 4 weeks, last visit: 14 days ago) → No reminder (too early)
+- Carol (no custom, last visit: 21 days ago) → **Gets Reminder** ✓ (uses 3-week default)
+- David (custom: 2 weeks, last visit: 21 days ago) → No reminder (too late, already reminded)
+
+### Benefits
+
+1. **Personalization**
+   - Respect individual customer visit patterns
+   - Some customers come weekly, others monthly
+
+2. **Accuracy**
+   - More relevant reminders
+   - Reduce "too early" or "too late" messages
+
+3. **Flexibility**
+   - Barber can override based on customer preference
+   - Easy to adjust as patterns change
+
+4. **Backwards Compatible**
+   - Existing customers without custom interval continue working
+   - No data migration required
+
+### Use Cases
+
+**Scenario 1: High-Frequency Customer**
+- Customer gets fade every week
+- Set interval to 1 week
+- Gets reminder exactly when due
+
+**Scenario 2: Low-Frequency Customer**
+- Customer comes every 6 weeks for full haircut
+- Set interval to 6 weeks
+- Avoids annoying premature reminders
+
+**Scenario 3: First-Time Customer**
+- New customer, no pattern yet
+- Leave interval empty (Auto)
+- Uses business default until pattern emerges
+
+**Scenario 4: Seasonal Customer**
+- Customer's pattern changes (summer vs winter)
+- Easily adjust interval as needed
+- No code changes required
+
 ## Technical Notes
 
 - All RPC functions return JSON format: `{success: boolean, messages_created: number, error?: string}`
@@ -315,3 +438,4 @@ All queries are filtered by the current business's `business_id`, ensuring users
 - Error handling at both database and UI levels
 - Messages Log joins customers and retention_flows tables for complete data display
 - All filters are client-side for instant response (consider server-side for large datasets)
+- Per-customer intervals use triple-fallback: customer → business → hardcoded default (3 weeks)

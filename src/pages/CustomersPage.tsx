@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useBusiness } from '../contexts/BusinessContext';
 import { supabase, Database } from '../lib/supabase';
-import { Users, Search, Plus, X, Phone, Mail, Calendar, DollarSign, TrendingUp } from 'lucide-react';
+import { Users, Search, Plus, X, Phone, Mail, Calendar, DollarSign, TrendingUp, Edit2, Check } from 'lucide-react';
 
 type Customer = Database['public']['Tables']['customers']['Row'];
 type Appointment = Database['public']['Tables']['appointments']['Row'] & {
@@ -228,6 +228,9 @@ function CustomerDetailModal({ customerId, onClose }: { customerId: string; onCl
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingInterval, setEditingInterval] = useState(false);
+  const [intervalValue, setIntervalValue] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchCustomerDetails();
@@ -252,11 +255,39 @@ function CustomerDetailModal({ customerId, onClose }: { customerId: string; onCl
         .limit(10);
 
       setCustomer(customerData);
+      setIntervalValue(customerData?.average_interval_weeks || null);
       setAppointments((appointmentsData as Appointment[]) || []);
     } catch (error) {
       console.error('Error fetching customer details:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveInterval = async () => {
+    if (!customer) return;
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .update({
+          average_interval_weeks: intervalValue || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', customer.id);
+
+      if (error) throw error;
+
+      setCustomer({
+        ...customer,
+        average_interval_weeks: intervalValue || null
+      });
+      setEditingInterval(false);
+    } catch (error) {
+      console.error('Error updating interval:', error);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -339,13 +370,51 @@ function CustomerDetailModal({ customerId, onClose }: { customerId: string; onCl
           </div>
 
           <div className="p-4 bg-zinc-800 rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <Calendar className="w-4 h-4 text-zinc-500" />
-              <p className="text-zinc-400 text-sm">Avg Interval</p>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-zinc-500" />
+                <p className="text-zinc-400 text-sm">Avg Interval</p>
+              </div>
+              {!editingInterval ? (
+                <button
+                  onClick={() => setEditingInterval(true)}
+                  className="p-1 hover:bg-zinc-700 rounded transition-colors"
+                  title="Edit interval"
+                >
+                  <Edit2 className="w-4 h-4 text-amber-500" />
+                </button>
+              ) : (
+                <button
+                  onClick={handleSaveInterval}
+                  disabled={saving}
+                  className="p-1 hover:bg-zinc-700 rounded transition-colors disabled:opacity-50"
+                  title="Save interval"
+                >
+                  <Check className="w-4 h-4 text-emerald-500" />
+                </button>
+              )}
             </div>
-            <p className="text-white font-medium">
-              {customer.average_interval_weeks ? `${customer.average_interval_weeks} weeks` : 'N/A'}
-            </p>
+            {editingInterval ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={intervalValue || ''}
+                  onChange={(e) => setIntervalValue(e.target.value ? parseInt(e.target.value) : null)}
+                  min={1}
+                  max={52}
+                  placeholder="Auto"
+                  className="w-20 px-2 py-1 bg-zinc-900 border border-zinc-700 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <span className="text-white text-sm">weeks</span>
+              </div>
+            ) : (
+              <p className="text-white font-medium">
+                {customer.average_interval_weeks ? `${customer.average_interval_weeks} weeks` : 'Auto'}
+              </p>
+            )}
+            {editingInterval && (
+              <p className="text-xs text-zinc-500 mt-1">Leave empty to use business default</p>
+            )}
           </div>
         </div>
 
