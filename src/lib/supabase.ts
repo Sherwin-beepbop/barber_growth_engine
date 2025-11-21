@@ -66,17 +66,46 @@ export type Database = {
           business_id: string;
           customer_id: string;
           service_id: string;
+          barber_id: string | null;
           appointment_date: string;
           appointment_time: string;
           duration_minutes: number;
           amount: number;
           status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+          source: string;
           notes: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: Omit<Database['public']['Tables']['appointments']['Row'], 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Database['public']['Tables']['appointments']['Insert']>;
+      };
+      barbers: {
+        Row: {
+          id: string;
+          business_id: string;
+          name: string;
+          active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['barbers']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['barbers']['Insert']>;
+      };
+      availability_blocks: {
+        Row: {
+          id: string;
+          business_id: string;
+          barber_id: string | null;
+          date: string;
+          start_time: string;
+          end_time: string;
+          max_clients: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['availability_blocks']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['availability_blocks']['Insert']>;
       };
       retention_flows: {
         Row: {
