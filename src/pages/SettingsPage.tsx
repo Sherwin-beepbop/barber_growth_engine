@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useBusiness } from '../contexts/BusinessContext';
 import { supabase, Database } from '../lib/supabase';
-import { Save, Plus, Trash2, Globe, Link as LinkIcon } from 'lucide-react';
+import { Save, Plus, Trash2, Globe, Link as LinkIcon, X, Users, ToggleLeft, ToggleRight } from 'lucide-react';
 
 type Service = Database['public']['Tables']['services']['Row'];
+type Barber = Database['public']['Tables']['barbers']['Row'];
 
 export default function SettingsPage() {
   const { business, refreshBusiness } = useBusiness();
@@ -14,6 +15,8 @@ export default function SettingsPage() {
   const [googleReviewUrl, setGoogleReviewUrl] = useState('');
   const [reminderInterval, setReminderInterval] = useState(3);
   const [services, setServices] = useState<Service[]>([]);
+  const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [showNewBarberModal, setShowNewBarberModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -25,6 +28,7 @@ export default function SettingsPage() {
       setGoogleReviewUrl(business.google_review_url || '');
       setReminderInterval(business.default_reminder_interval_weeks);
       fetchServices();
+      fetchBarbers();
     }
   }, [business]);
 
@@ -38,6 +42,18 @@ export default function SettingsPage() {
       .order('created_at');
 
     setServices(data || []);
+  };
+
+  const fetchBarbers = async () => {
+    if (!business) return;
+
+    const { data } = await supabase
+      .from('barbers')
+      .select('*')
+      .eq('business_id', business.id)
+      .order('created_at');
+
+    setBarbers(data || []);
   };
 
   const handleSaveBasicInfo = async (e: React.FormEvent) => {
@@ -110,6 +126,17 @@ export default function SettingsPage() {
 
     if (!error) {
       fetchServices();
+    }
+  };
+
+  const toggleBarberActive = async (barberId: string, currentActive: boolean) => {
+    const { error } = await supabase
+      .from('barbers')
+      .update({ active: !currentActive })
+      .eq('id', barberId);
+
+    if (!error) {
+      fetchBarbers();
     }
   };
 
@@ -314,6 +341,157 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
+
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-amber-500" />
+              <h2 className="text-xl font-semibold text-white">Team / Barbers</h2>
+            </div>
+            <button
+              onClick={() => setShowNewBarberModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-semibold rounded-lg transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              Add Barber
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {barbers.map((barber) => (
+              <div
+                key={barber.id}
+                className="flex items-center gap-4 p-4 bg-zinc-800 rounded-lg"
+              >
+                <div className="flex-1">
+                  <p className="text-white font-medium">{barber.name}</p>
+                  <p className="text-zinc-400 text-sm">
+                    {barber.active ? 'Active' : 'Inactive'}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => toggleBarberActive(barber.id, barber.active)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    barber.active
+                      ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20'
+                      : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'
+                  }`}
+                >
+                  {barber.active ? (
+                    <>
+                      <ToggleRight className="w-5 h-5" />
+                      Active
+                    </>
+                  ) : (
+                    <>
+                      <ToggleLeft className="w-5 h-5" />
+                      Inactive
+                    </>
+                  )}
+                </button>
+              </div>
+            ))}
+
+            {barbers.length === 0 && (
+              <p className="text-center text-zinc-400 py-8">
+                No barbers yet. Add your first team member to get started.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {showNewBarberModal && (
+        <NewBarberModal
+          business={business!}
+          onClose={() => setShowNewBarberModal(false)}
+          onSuccess={() => {
+            setShowNewBarberModal(false);
+            fetchBarbers();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function NewBarberModal({
+  business,
+  onClose,
+  onSuccess
+}: {
+  business: any;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { error } = await supabase
+        .from('barbers')
+        .insert({
+          business_id: business.id,
+          name,
+          active: true
+        });
+
+      if (error) throw error;
+      onSuccess();
+    } catch (error) {
+      console.error('Error creating barber:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 w-full max-w-md">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-white">Add New Barber</h2>
+          <button onClick={onClose} className="p-1 hover:bg-zinc-800 rounded">
+            <X className="w-5 h-5 text-zinc-400" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
+              Barber Name
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              placeholder="Enter barber's full name"
+              className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-semibold rounded-lg transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Adding...' : 'Add Barber'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
