@@ -102,6 +102,10 @@ export default function RetentionPage() {
 
         if (error) throw error;
       } else {
+        const triggerCondition = flow.flow_type === 'winback'
+          ? { inactive_weeks: 8 }
+          : {};
+
         const { error } = await supabase
           .from('retention_flows')
           .insert({
@@ -110,7 +114,7 @@ export default function RetentionPage() {
             enabled: true,
             channel: flow.channel,
             message_template: flow.message_template,
-            trigger_condition: {},
+            trigger_condition: triggerCondition,
             follow_up_enabled: false
           });
 
@@ -348,6 +352,9 @@ function FlowSettingsModal({
   const [followUpEnabled, setFollowUpEnabled] = useState(flow.follow_up_enabled);
   const [followUpDays, setFollowUpDays] = useState(flow.follow_up_days || 3);
   const [followUpTemplate, setFollowUpTemplate] = useState(flow.follow_up_template || '');
+  const [inactiveWeeks, setInactiveWeeks] = useState<number>(
+    (flow.trigger_condition as any)?.inactive_weeks || 8
+  );
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -355,12 +362,17 @@ function FlowSettingsModal({
     setLoading(true);
 
     try {
+      const triggerCondition = flow.flow_type === 'winback'
+        ? { inactive_weeks: inactiveWeeks }
+        : flow.trigger_condition || {};
+
       const data = {
         channel,
         message_template: messageTemplate,
         follow_up_enabled: followUpEnabled,
         follow_up_days: followUpEnabled ? followUpDays : null,
-        follow_up_template: followUpEnabled ? followUpTemplate : null
+        follow_up_template: followUpEnabled ? followUpTemplate : null,
+        trigger_condition: triggerCondition
       };
 
       if (flow.id) {
@@ -377,7 +389,6 @@ function FlowSettingsModal({
             business_id: flow.business_id,
             flow_type: flow.flow_type,
             enabled: false,
-            trigger_condition: {},
             ...data
           });
 
@@ -424,6 +435,28 @@ function FlowSettingsModal({
               ))}
             </div>
           </div>
+
+          {flow.flow_type === 'winback' && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-2">
+                Inactive Threshold
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  value={inactiveWeeks}
+                  onChange={(e) => setInactiveWeeks(parseInt(e.target.value) || 1)}
+                  min={1}
+                  max={52}
+                  className="w-24 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <span className="text-zinc-400">weeks without a visit</span>
+              </div>
+              <p className="text-zinc-500 text-xs mt-2">
+                Customers who haven't visited in {inactiveWeeks} {inactiveWeeks === 1 ? 'week' : 'weeks'} will receive this message
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-2">
