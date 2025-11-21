@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useBusiness } from '../contexts/BusinessContext';
 import { supabase, Database } from '../lib/supabase';
-import { Save, Plus, Trash2, Globe, Link as LinkIcon, X, Users, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Save, Plus, Trash2, Globe, Link as LinkIcon, X, Users, ToggleLeft, ToggleRight, Calendar } from 'lucide-react';
 
 type Service = Database['public']['Tables']['services']['Row'];
 type Barber = Database['public']['Tables']['barbers']['Row'];
+type AvailabilityBlock = Database['public']['Tables']['availability_blocks']['Row'];
 
 export default function SettingsPage() {
   const { business, refreshBusiness } = useBusiness();
@@ -16,7 +17,9 @@ export default function SettingsPage() {
   const [reminderInterval, setReminderInterval] = useState(3);
   const [services, setServices] = useState<Service[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [availabilityBlocks, setAvailabilityBlocks] = useState<AvailabilityBlock[]>([]);
   const [showNewBarberModal, setShowNewBarberModal] = useState(false);
+  const [showNewAvailabilityModal, setShowNewAvailabilityModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -29,6 +32,7 @@ export default function SettingsPage() {
       setReminderInterval(business.default_reminder_interval_weeks);
       fetchServices();
       fetchBarbers();
+      fetchAvailabilityBlocks();
     }
   }, [business]);
 
@@ -54,6 +58,19 @@ export default function SettingsPage() {
       .order('created_at');
 
     setBarbers(data || []);
+  };
+
+  const fetchAvailabilityBlocks = async () => {
+    if (!business) return;
+
+    const { data } = await supabase
+      .from('availability_blocks')
+      .select('*')
+      .eq('business_id', business.id)
+      .order('date')
+      .order('start_time');
+
+    setAvailabilityBlocks(data || []);
   };
 
   const handleSaveBasicInfo = async (e: React.FormEvent) => {
@@ -138,6 +155,23 @@ export default function SettingsPage() {
     if (!error) {
       fetchBarbers();
     }
+  };
+
+  const deleteAvailabilityBlock = async (blockId: string) => {
+    const { error } = await supabase
+      .from('availability_blocks')
+      .delete()
+      .eq('id', blockId);
+
+    if (!error) {
+      fetchAvailabilityBlocks();
+    }
+  };
+
+  const getBarberName = (barberId: string | null) => {
+    if (!barberId) return 'All barbers';
+    const barber = barbers.find(b => b.id === barberId);
+    return barber ? barber.name : 'Unknown';
   };
 
   const bookingUrl = business && bookingMode === 'online'
@@ -400,6 +434,58 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
+
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-amber-500" />
+              <h2 className="text-xl font-semibold text-white">Availability</h2>
+            </div>
+            <button
+              onClick={() => setShowNewAvailabilityModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-semibold rounded-lg transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              Add Availability
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {availabilityBlocks.map((block) => (
+              <div
+                key={block.id}
+                className="flex items-center gap-4 p-4 bg-zinc-800 rounded-lg"
+              >
+                <div className="flex-1">
+                  <p className="text-white font-medium">
+                    {new Date(block.date).toLocaleDateString('nl-NL', {
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    })}
+                  </p>
+                  <p className="text-zinc-400 text-sm">
+                    {getBarberName(block.barber_id)} · {block.start_time.substring(0, 5)} - {block.end_time.substring(0, 5)} · Max {block.max_clients} client{block.max_clients > 1 ? 's' : ''}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => deleteAvailabilityBlock(block.id)}
+                  className="p-1.5 hover:bg-red-500/10 rounded transition-colors"
+                >
+                  <Trash2 className="w-4 h-4 text-red-500" />
+                </button>
+              </div>
+            ))}
+
+            {availabilityBlocks.length === 0 && (
+              <p className="text-center text-zinc-400 py-8">
+                No availability blocks yet. Add your first availability slot to get started.
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
       {showNewBarberModal && (
@@ -409,6 +495,18 @@ export default function SettingsPage() {
           onSuccess={() => {
             setShowNewBarberModal(false);
             fetchBarbers();
+          }}
+        />
+      )}
+
+      {showNewAvailabilityModal && (
+        <NewAvailabilityModal
+          business={business!}
+          barbers={barbers}
+          onClose={() => setShowNewAvailabilityModal(false)}
+          onSuccess={() => {
+            setShowNewAvailabilityModal(false);
+            fetchAvailabilityBlocks();
           }}
         />
       )}
@@ -489,6 +587,156 @@ function NewBarberModal({
               className="flex-1 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-semibold rounded-lg transition-colors disabled:opacity-50"
             >
               {loading ? 'Adding...' : 'Add Barber'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function NewAvailabilityModal({
+  business,
+  barbers,
+  onClose,
+  onSuccess
+}: {
+  business: any;
+  barbers: Barber[];
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [barberId, setBarberId] = useState<string | null>(null);
+  const [date, setDate] = useState('');
+  const [startTime, setStartTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('17:00');
+  const [maxClients, setMaxClients] = useState(1);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { error } = await supabase
+        .from('availability_blocks')
+        .insert({
+          business_id: business.id,
+          barber_id: barberId,
+          date,
+          start_time: startTime,
+          end_time: endTime,
+          max_clients: maxClients
+        });
+
+      if (error) throw error;
+      onSuccess();
+    } catch (error) {
+      console.error('Error creating availability block:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 w-full max-w-md">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-white">Add Availability</h2>
+          <button onClick={onClose} className="p-1 hover:bg-zinc-800 rounded">
+            <X className="w-5 h-5 text-zinc-400" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
+              Barber
+            </label>
+            <select
+              value={barberId || ''}
+              onChange={(e) => setBarberId(e.target.value || null)}
+              className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              <option value="">All barbers</option>
+              {barbers.filter(b => b.active).map((barber) => (
+                <option key={barber.id} value={barber.id}>
+                  {barber.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
+              Date
+            </label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              required
+              className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-2">
+                Start Time
+              </label>
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                required
+                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-2">
+                End Time
+              </label>
+              <input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                required
+                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
+              Max Clients
+            </label>
+            <input
+              type="number"
+              value={maxClients}
+              onChange={(e) => setMaxClients(parseInt(e.target.value))}
+              min={1}
+              max={10}
+              required
+              className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-semibold rounded-lg transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Adding...' : 'Add Availability'}
             </button>
           </div>
         </form>
