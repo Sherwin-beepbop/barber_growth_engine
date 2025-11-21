@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useBusiness } from '../contexts/BusinessContext';
 import { supabase, Database } from '../lib/supabase';
-import { Calendar, Plus, ChevronLeft, ChevronRight, Clock, DollarSign, X } from 'lucide-react';
+import { Calendar, Plus, ChevronLeft, ChevronRight, Clock, DollarSign, X, ChevronDown } from 'lucide-react';
 
 type Appointment = Database['public']['Tables']['appointments']['Row'] & {
   customer: { name: string; phone: string } | null;
@@ -19,6 +19,8 @@ export default function BookingsPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showNewAppointment, setShowNewAppointment] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   useEffect(() => {
     if (business) {
@@ -79,8 +81,51 @@ export default function BookingsPage() {
         return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
       case 'cancelled':
         return 'bg-red-500/10 text-red-500 border-red-500/20';
+      case 'no_show':
+        return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
       default:
         return 'bg-zinc-700 text-zinc-400 border-zinc-600';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'scheduled':
+        return 'Scheduled';
+      case 'completed':
+        return 'Completed';
+      case 'cancelled':
+        return 'Cancelled';
+      case 'no_show':
+        return 'No Show';
+      default:
+        return status;
+    }
+  };
+
+  const updateAppointmentStatus = async (appointmentId: string, newStatus: string) => {
+    setUpdatingStatus(appointmentId);
+    setOpenDropdown(null);
+
+    const oldAppointments = [...appointments];
+
+    setAppointments(appointments.map(apt =>
+      apt.id === appointmentId ? { ...apt, status: newStatus as any } : apt
+    ));
+
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ status: newStatus })
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating appointment status:', error);
+      setAppointments(oldAppointments);
+      alert('Failed to update appointment status. Please try again.');
+    } finally {
+      setUpdatingStatus(null);
     }
   };
 
@@ -172,9 +217,40 @@ export default function BookingsPage() {
                   <span className="text-white font-medium">€{Number(appointment.amount).toFixed(2)}</span>
                 </div>
 
-                <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(appointment.status)}`}>
-                  {appointment.status}
-                </span>
+                <div className="relative">
+                  <button
+                    onClick={() => setOpenDropdown(openDropdown === appointment.id ? null : appointment.id)}
+                    disabled={updatingStatus === appointment.id}
+                    className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium border transition-all ${getStatusColor(appointment.status)} ${updatingStatus === appointment.id ? 'opacity-50 cursor-not-allowed' : 'hover:bg-opacity-80 cursor-pointer'}`}
+                  >
+                    {updatingStatus === appointment.id ? (
+                      <span className="animate-pulse">Updating...</span>
+                    ) : (
+                      <>
+                        <span>{getStatusLabel(appointment.status)}</span>
+                        <ChevronDown className="w-3 h-3" />
+                      </>
+                    )}
+                  </button>
+
+                  {openDropdown === appointment.id && updatingStatus !== appointment.id && (
+                    <div className="absolute right-0 top-full mt-1 w-40 bg-zinc-800 border border-zinc-700 rounded-lg shadow-lg z-10 overflow-hidden">
+                      {['scheduled', 'completed', 'cancelled', 'no_show'].map(status => (
+                        <button
+                          key={status}
+                          onClick={() => updateAppointmentStatus(appointment.id, status)}
+                          className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                            appointment.status === status
+                              ? 'bg-zinc-700 text-white font-medium'
+                              : 'text-zinc-300 hover:bg-zinc-700'
+                          }`}
+                        >
+                          {getStatusLabel(status)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
