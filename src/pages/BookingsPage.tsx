@@ -33,7 +33,10 @@ export default function BookingsPage() {
     if (!business) return;
 
     try {
-      const dateStr = selectedDate.toISOString().split('T')[0];
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
 
       const { data: appointmentsData } = await supabase
         .from('appointments')
@@ -308,13 +311,18 @@ function NewAppointmentModal({
     try {
       const selectedService = services.find(s => s.id === serviceId);
 
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+
       const { error } = await supabase
         .from('appointments')
         .insert({
           business_id: business.id,
           customer_id: customerId,
           service_id: serviceId,
-          appointment_date: selectedDate.toISOString().split('T')[0],
+          appointment_date: dateStr,
           appointment_time: time,
           duration_minutes: selectedService?.duration_minutes || 30,
           amount: selectedService?.price || 0,
