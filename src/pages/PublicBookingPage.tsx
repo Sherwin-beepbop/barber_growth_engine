@@ -65,53 +65,84 @@ export default function PublicBookingPage() {
   }, [businessId]);
 
   const fetchBusinessData = async () => {
-    if (!businessId) return;
+    if (!businessId) {
+      // No businessId in URL - cannot proceed
+      setError('Invalid booking link');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError('');
 
     try {
-      const { data: businessData } = await supabase
+      // Fetch business data
+      const { data: businessData, error: businessError } = await supabase
         .from('businesses')
         .select('*')
         .eq('id', businessId)
         .maybeSingle();
 
+      // Handle Supabase errors
+      if (businessError) {
+        console.error('Error fetching business:', businessError);
+        setError('Failed to load booking information');
+        setLoading(false);
+        return;
+      }
+
+      // Business not found
       if (!businessData) {
         setError('Business not found');
         setLoading(false);
         return;
       }
 
+      // Business exists but online booking is disabled
       if (businessData.booking_mode === 'internal') {
         setError('Online booking is not available for this business');
         setLoading(false);
         return;
       }
 
-      const { data: servicesData } = await supabase
+      // Fetch services and barbers
+      const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select('*')
         .eq('business_id', businessId)
         .eq('active', true)
         .order('price');
 
-      const { data: barbersData } = await supabase
+      const { data: barbersData, error: barbersError } = await supabase
         .from('barbers')
         .select('*')
         .eq('business_id', businessId)
         .eq('active', true)
         .order('name');
 
+      // Handle errors in fetching services/barbers
+      if (servicesError || barbersError) {
+        console.error('Error fetching services/barbers:', servicesError || barbersError);
+        setError('Failed to load booking information');
+        setLoading(false);
+        return;
+      }
+
+      // Success: set all data
       setBusiness(businessData);
       setServices(servicesData || []);
       setBarbers(barbersData || []);
+      setLoading(false);
     } catch (err) {
-      console.error('Error fetching booking data:', err);
+      // Catch any unexpected errors
+      console.error('Unexpected error fetching booking data:', err);
       setError('Failed to load booking information');
-    } finally {
       setLoading(false);
     }
   };
 
-  if (loading || !business) {
+  // LOADING STATE: Show spinner only while fetching data
+  if (loading) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
         <div className="animate-pulse">
@@ -122,6 +153,7 @@ export default function PublicBookingPage() {
     );
   }
 
+  // ERROR STATE: Show error message if something went wrong
   if (error) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
@@ -131,6 +163,21 @@ export default function PublicBookingPage() {
           </div>
           <h1 className="text-2xl font-bold text-white mb-2">Booking Unavailable</h1>
           <p className="text-zinc-400">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // NO BUSINESS STATE: Should not happen if error handling is correct, but failsafe
+  if (!business) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <X className="w-8 h-8 text-red-500" />
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">Booking Unavailable</h1>
+          <p className="text-zinc-400">Business not found</p>
         </div>
       </div>
     );
