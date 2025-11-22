@@ -319,6 +319,7 @@ function NewAppointmentModal({
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [timeSlotsError, setTimeSlotsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (barberId && serviceId) {
@@ -333,6 +334,8 @@ function NewAppointmentModal({
     if (!barberId || !serviceId) return;
 
     setLoadingSlots(true);
+    setTimeSlotsError(null);
+
     try {
       const selectedService = services.find(s => s.id === serviceId);
       if (!selectedService) return;
@@ -351,13 +354,15 @@ function NewAppointmentModal({
 
       if (error) {
         console.error('Error fetching time slots:', error);
+        setTimeSlotsError(`Time slot error: ${error.message || 'Unknown error'}`);
         setAvailableTimeSlots([]);
         return;
       }
 
       setAvailableTimeSlots(data?.free_slots || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching time slots:', err);
+      setTimeSlotsError(`Time slot error: ${err.message || 'Unknown error'}`);
       setAvailableTimeSlots([]);
     } finally {
       setLoadingSlots(false);
@@ -497,6 +502,11 @@ function NewAppointmentModal({
               <div className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-400">
                 Select barber and service first
               </div>
+            )}
+            {timeSlotsError && (
+              <p className="mt-2 text-sm text-red-500">
+                {timeSlotsError}
+              </p>
             )}
           </div>
 

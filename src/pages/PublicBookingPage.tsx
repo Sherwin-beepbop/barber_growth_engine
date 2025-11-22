@@ -711,6 +711,7 @@ function DateTimeSelectionStep({
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [timeSlotsError, setTimeSlotsError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAvailableDates();
@@ -755,6 +756,8 @@ function DateTimeSelectionStep({
       return;
     }
 
+    setTimeSlotsError(null);
+
     try {
       const { data, error } = await supabase.rpc('generate_free_time_slots', {
         p_business_id: businessId,
@@ -765,13 +768,15 @@ function DateTimeSelectionStep({
 
       if (error) {
         console.error('Error fetching time slots:', error);
+        setTimeSlotsError(`Time slot error: ${error.message || 'Unknown error'}`);
         setAvailableTimeSlots([]);
         return;
       }
 
       setAvailableTimeSlots(data?.free_slots || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching time slots:', err);
+      setTimeSlotsError(`Time slot error: ${err.message || 'Unknown error'}`);
       setAvailableTimeSlots([]);
     }
   };
@@ -853,6 +858,11 @@ function DateTimeSelectionStep({
           {availableTimeSlots.length === 0 && (
             <p className="text-zinc-400 text-sm mt-2">
               No available times for this day.
+            </p>
+          )}
+          {timeSlotsError && (
+            <p className="mt-2 text-sm text-red-400">
+              {timeSlotsError}
             </p>
           )}
         </div>
