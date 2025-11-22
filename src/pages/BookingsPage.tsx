@@ -6,6 +6,7 @@ import { Calendar, Plus, ChevronLeft, ChevronRight, Clock, DollarSign, X, Chevro
 type Appointment = Database['public']['Tables']['appointments']['Row'] & {
   customer: { name: string; phone: string } | null;
   service: { name: string } | null;
+  barber: { name: string } | null;
 };
 
 type Service = Database['public']['Tables']['services']['Row'];
@@ -39,7 +40,8 @@ export default function BookingsPage() {
         .select(`
           *,
           customer:customers(name, phone),
-          service:services(name)
+          service:services(name),
+          barber:barbers(name)
         `)
         .eq('business_id', business.id)
         .eq('appointment_date', dateStr)
@@ -209,7 +211,12 @@ export default function BookingsPage() {
 
                 <div className="flex-1">
                   <p className="text-white font-medium">{appointment.customer?.name}</p>
-                  <p className="text-zinc-400 text-sm">{appointment.service?.name}</p>
+                  <p className="text-zinc-400 text-sm">
+                    {appointment.service?.name}
+                    {appointment.barber && (
+                      <span className="ml-2 text-zinc-500">· {appointment.barber.name}</span>
+                    )}
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-2">
