@@ -315,8 +315,54 @@ function NewAppointmentModal({
   const [customerId, setCustomerId] = useState('');
   const [serviceId, setServiceId] = useState('');
   const [barberId, setBarberId] = useState('');
-  const [time, setTime] = useState('09:00');
+  const [time, setTime] = useState('');
+  const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
+  useEffect(() => {
+    if (barberId && serviceId) {
+      fetchAvailableTimeSlots();
+    } else {
+      setAvailableTimeSlots([]);
+      setTime('');
+    }
+  }, [barberId, serviceId, selectedDate]);
+
+  const fetchAvailableTimeSlots = async () => {
+    if (!barberId || !serviceId) return;
+
+    setLoadingSlots(true);
+    try {
+      const selectedService = services.find(s => s.id === serviceId);
+      if (!selectedService) return;
+
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+
+      const { data, error } = await supabase.rpc('generate_free_time_slots', {
+        p_business_id: business.id,
+        p_barber_id: barberId,
+        p_date: dateStr,
+        p_service_duration: selectedService.duration_minutes
+      });
+
+      if (error) {
+        console.error('Error fetching time slots:', error);
+        setAvailableTimeSlots([]);
+        return;
+      }
+
+      setAvailableTimeSlots(data?.free_slots || []);
+    } catch (err) {
+      console.error('Error fetching time slots:', err);
+      setAvailableTimeSlots([]);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -425,13 +471,33 @@ function NewAppointmentModal({
             <label className="block text-sm font-medium text-zinc-300 mb-2">
               Time
             </label>
-            <input
-              type="time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              required
-              className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-            />
+            {loadingSlots ? (
+              <div className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-400">
+                Loading available times...
+              </div>
+            ) : availableTimeSlots.length > 0 ? (
+              <select
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                required
+                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+              >
+                <option value="">Select time</option>
+                {availableTimeSlots.map(slot => (
+                  <option key={slot} value={slot}>
+                    {slot}
+                  </option>
+                ))}
+              </select>
+            ) : barberId && serviceId ? (
+              <div className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-400">
+                No available times for this day
+              </div>
+            ) : (
+              <div className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-400">
+                Select barber and service first
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 pt-4">

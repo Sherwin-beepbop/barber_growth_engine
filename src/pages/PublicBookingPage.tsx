@@ -750,58 +750,29 @@ function DateTimeSelectionStep({
   };
 
   const fetchAvailableTimeSlots = async () => {
+    if (!barberId) {
+      setAvailableTimeSlots([]);
+      return;
+    }
+
     try {
-      let blocksQuery = supabase
-        .from('availability_blocks')
-        .select('*')
-        .eq('business_id', businessId)
-        .eq('date', selectedDate);
-
-      if (barberId) {
-        blocksQuery = blocksQuery.eq('barber_id', barberId);
-      } else {
-        blocksQuery = blocksQuery.is('barber_id', null);
-      }
-
-      const { data: blocks } = await blocksQuery;
-
-      const { data: existingAppointments } = await supabase
-        .from('appointments')
-        .select('appointment_time, barber_id')
-        .eq('business_id', businessId)
-        .eq('appointment_date', selectedDate)
-        .eq('status', 'scheduled');
-
-      const slots: string[] = [];
-
-      blocks?.forEach(block => {
-        const startHour = parseInt(block.start_time.split(':')[0]);
-        const startMin = parseInt(block.start_time.split(':')[1]);
-        const endHour = parseInt(block.end_time.split(':')[0]);
-        const endMin = parseInt(block.end_time.split(':')[1]);
-
-        const startMinutes = startHour * 60 + startMin;
-        const endMinutes = endHour * 60 + endMin;
-
-        for (let time = startMinutes; time + service.duration_minutes <= endMinutes; time += 30) {
-          const hours = Math.floor(time / 60);
-          const mins = time % 60;
-          const timeString = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
-
-          const appointmentsAtTime = existingAppointments?.filter(apt =>
-            apt.appointment_time === timeString &&
-            (barberId ? apt.barber_id === barberId : apt.barber_id === null)
-          ).length || 0;
-
-          if (appointmentsAtTime < block.max_clients) {
-            slots.push(timeString);
-          }
-        }
+      const { data, error } = await supabase.rpc('generate_free_time_slots', {
+        p_business_id: businessId,
+        p_barber_id: barberId,
+        p_date: selectedDate,
+        p_service_duration: service.duration_minutes
       });
 
-      setAvailableTimeSlots([...new Set(slots)].sort());
+      if (error) {
+        console.error('Error fetching time slots:', error);
+        setAvailableTimeSlots([]);
+        return;
+      }
+
+      setAvailableTimeSlots(data?.free_slots || []);
     } catch (err) {
       console.error('Error fetching time slots:', err);
+      setAvailableTimeSlots([]);
     }
   };
 
@@ -881,7 +852,7 @@ function DateTimeSelectionStep({
           </div>
           {availableTimeSlots.length === 0 && (
             <p className="text-zinc-400 text-sm mt-2">
-              No available time slots for this date.
+              No available times for this day.
             </p>
           )}
         </div>
