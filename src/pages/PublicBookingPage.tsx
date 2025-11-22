@@ -9,6 +9,34 @@ type Customer = Database['public']['Tables']['customers']['Row'];
 type AvailabilityBlock = Database['public']['Tables']['availability_blocks']['Row'];
 type Appointment = Database['public']['Tables']['appointments']['Row'];
 
+function getTodayDateString(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateForDisplay(dateString: string, format: 'short' | 'long' = 'long'): string {
+  const [year, month, day] = dateString.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+
+  if (format === 'short') {
+    return date.toLocaleDateString('nl-NL', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short'
+    });
+  }
+
+  return date.toLocaleDateString('nl-NL', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+}
+
 export default function PublicBookingPage() {
   const pathParts = window.location.pathname.split('/');
   const businessId = pathParts[pathParts.length - 1];
@@ -111,11 +139,7 @@ export default function PublicBookingPage() {
           <h1 className="text-2xl font-bold text-white mb-2">Booking Confirmed!</h1>
           <p className="text-zinc-400 mb-6">
             Your appointment has been scheduled. We'll see you on{' '}
-            {new Date(selectedDate).toLocaleDateString('nl-NL', {
-              weekday: 'long',
-              month: 'long',
-              day: 'numeric'
-            })} at {selectedTime}.
+            {formatDateForDisplay(selectedDate)} at {selectedTime}.
           </p>
           <button
             onClick={() => window.location.reload()}
@@ -620,11 +644,12 @@ function DateTimeSelectionStep({
   const fetchAvailableDates = async () => {
     setLoading(true);
     try {
+      const today = getTodayDateString();
       let query = supabase
         .from('availability_blocks')
         .select('date')
         .eq('business_id', businessId)
-        .gte('date', new Date().toISOString().split('T')[0]);
+        .gte('date', today);
 
       if (barberId) {
         query = query.eq('barber_id', barberId);
@@ -739,11 +764,7 @@ function DateTimeSelectionStep({
               }`}
             >
               <p className="text-white text-sm font-medium">
-                {new Date(date + 'T00:00:00').toLocaleDateString('nl-NL', {
-                  weekday: 'short',
-                  day: 'numeric',
-                  month: 'short'
-                })}
+                {formatDateForDisplay(date, 'short')}
               </p>
             </button>
           ))}
@@ -897,12 +918,7 @@ function ConfirmationStep({
         <div className="flex justify-between">
           <span className="text-zinc-400">Date:</span>
           <span className="text-white font-medium">
-            {new Date(selectedDate + 'T00:00:00').toLocaleDateString('nl-NL', {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric'
-            })}
+            {formatDateForDisplay(selectedDate)}
           </span>
         </div>
         <div className="flex justify-between">
