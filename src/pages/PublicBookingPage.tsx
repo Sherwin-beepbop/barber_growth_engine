@@ -51,7 +51,8 @@ export default function PublicBookingPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [customerName, setCustomerName] = useState('');
+  const [customerFirstName, setCustomerFirstName] = useState('');
+  const [customerLastName, setCustomerLastName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [selectedBarberId, setSelectedBarberId] = useState<string | null>(null);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -198,8 +199,10 @@ export default function PublicBookingPage() {
               businessId={businessId}
               phoneNumber={phoneNumber}
               setPhoneNumber={setPhoneNumber}
-              customerName={customerName}
-              setCustomerName={setCustomerName}
+              customerFirstName={customerFirstName}
+              setCustomerFirstName={setCustomerFirstName}
+              customerLastName={customerLastName}
+              setCustomerLastName={setCustomerLastName}
               customerEmail={customerEmail}
               setCustomerEmail={setCustomerEmail}
               onNext={(cust) => {
@@ -267,8 +270,10 @@ function PhoneVerificationStep({
   businessId,
   phoneNumber,
   setPhoneNumber,
-  customerName,
-  setCustomerName,
+  customerFirstName,
+  setCustomerFirstName,
+  customerLastName,
+  setCustomerLastName,
   customerEmail,
   setCustomerEmail,
   onNext
@@ -276,8 +281,10 @@ function PhoneVerificationStep({
   businessId: string;
   phoneNumber: string;
   setPhoneNumber: (phone: string) => void;
-  customerName: string;
-  setCustomerName: (name: string) => void;
+  customerFirstName: string;
+  setCustomerFirstName: (firstName: string) => void;
+  customerLastName: string;
+  setCustomerLastName: (lastName: string) => void;
   customerEmail: string;
   setCustomerEmail: (email: string) => void;
   onNext: (customer: Customer) => void;
@@ -320,12 +327,13 @@ function PhoneVerificationStep({
 
     try {
       const normalizedPhone = normalizePhoneNumber(phoneNumber);
+      const fullName = `${customerFirstName.trim()} ${customerLastName.trim()}`;
 
       const { data: newCustomer, error: customerError } = await supabase
         .from('customers')
         .insert({
           business_id: businessId,
-          name: customerName,
+          name: fullName,
           phone: normalizedPhone,
           email: customerEmail || null,
           total_visits: 0,
@@ -356,18 +364,33 @@ function PhoneVerificationStep({
           </p>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-zinc-300 mb-2">
-            Your Name *
-          </label>
-          <input
-            type="text"
-            value={customerName}
-            onChange={(e) => setCustomerName(e.target.value)}
-            required
-            placeholder="John Doe"
-            className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
+              First Name *
+            </label>
+            <input
+              type="text"
+              value={customerFirstName}
+              onChange={(e) => setCustomerFirstName(e.target.value)}
+              required
+              placeholder="John"
+              className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
+              Last Name *
+            </label>
+            <input
+              type="text"
+              value={customerLastName}
+              onChange={(e) => setCustomerLastName(e.target.value)}
+              required
+              placeholder="Doe"
+              className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
         </div>
 
         <div>
