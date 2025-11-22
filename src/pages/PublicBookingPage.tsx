@@ -111,7 +111,7 @@ export default function PublicBookingPage() {
     }
   };
 
-  if (loading) {
+  if (loading || !business) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
         <div className="animate-pulse">
@@ -122,7 +122,7 @@ export default function PublicBookingPage() {
     );
   }
 
-  if (error && !business) {
+  if (error) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
         <div className="text-center">
