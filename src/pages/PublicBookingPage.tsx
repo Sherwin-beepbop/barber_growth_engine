@@ -72,11 +72,16 @@ export default function PublicBookingPage() {
         .from('businesses')
         .select('*')
         .eq('id', businessId)
-        .eq('booking_mode', 'online')
         .maybeSingle();
 
       if (!businessData) {
-        setError('Booking not available');
+        setError('Business not found');
+        setLoading(false);
+        return;
+      }
+
+      if (businessData.booking_mode === 'internal') {
+        setError('Online booking is not available for this business');
         setLoading(false);
         return;
       }
