@@ -11,12 +11,14 @@ type Appointment = Database['public']['Tables']['appointments']['Row'] & {
 
 type Service = Database['public']['Tables']['services']['Row'];
 type Customer = Database['public']['Tables']['customers']['Row'];
+type Barber = Database['public']['Tables']['barbers']['Row'];
 
 export default function BookingsPage() {
   const { business } = useBusiness();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [barbers, setBarbers] = useState<Barber[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showNewAppointment, setShowNewAppointment] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -62,9 +64,17 @@ export default function BookingsPage() {
         .eq('business_id', business.id)
         .order('name');
 
+      const { data: barbersData } = await supabase
+        .from('barbers')
+        .select('*')
+        .eq('business_id', business.id)
+        .eq('active', true)
+        .order('name');
+
       setAppointments((appointmentsData as Appointment[]) || []);
       setServices(servicesData || []);
       setCustomers(customersData || []);
+      setBarbers(barbersData || []);
     } catch (error) {
       console.error('Error fetching bookings data:', error);
     } finally {
@@ -272,6 +282,7 @@ export default function BookingsPage() {
           business={business!}
           services={services}
           customers={customers}
+          barbers={barbers}
           selectedDate={selectedDate}
           onClose={() => setShowNewAppointment(false)}
           onSuccess={() => {
@@ -288,6 +299,7 @@ function NewAppointmentModal({
   business,
   services,
   customers,
+  barbers,
   selectedDate,
   onClose,
   onSuccess
@@ -295,12 +307,14 @@ function NewAppointmentModal({
   business: any;
   services: Service[];
   customers: Customer[];
+  barbers: Barber[];
   selectedDate: Date;
   onClose: () => void;
   onSuccess: () => void;
 }) {
   const [customerId, setCustomerId] = useState('');
   const [serviceId, setServiceId] = useState('');
+  const [barberId, setBarberId] = useState('');
   const [time, setTime] = useState('09:00');
   const [loading, setLoading] = useState(false);
 
@@ -322,6 +336,7 @@ function NewAppointmentModal({
           business_id: business.id,
           customer_id: customerId,
           service_id: serviceId,
+          barber_id: barberId,
           appointment_date: dateStr,
           appointment_time: time,
           duration_minutes: selectedService?.duration_minutes || 30,
@@ -382,6 +397,25 @@ function NewAppointmentModal({
               {services.map(service => (
                 <option key={service.id} value={service.id}>
                   {service.name} - €{Number(service.price).toFixed(2)} ({service.duration_minutes}min)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
+              Barber
+            </label>
+            <select
+              value={barberId}
+              onChange={(e) => setBarberId(e.target.value)}
+              required
+              className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              <option value="">Select barber</option>
+              {barbers.map(barber => (
+                <option key={barber.id} value={barber.id}>
+                  {barber.name}
                 </option>
               ))}
             </select>
