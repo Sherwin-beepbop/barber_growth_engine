@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase, Database } from '../lib/supabase';
+import { normalizePhoneNumber } from '../lib/phoneUtils';
 import { Scissors, Check, X, Phone, Users, Calendar, Clock, ChevronRight, ChevronLeft } from 'lucide-react';
 
 type Business = Database['public']['Tables']['businesses']['Row'];
@@ -290,11 +291,14 @@ function PhoneVerificationStep({
     setError('');
 
     try {
+      const normalizedPhone = normalizePhoneNumber(phoneNumber);
+      setPhoneNumber(normalizedPhone);
+
       const { data: existingCustomer } = await supabase
         .from('customers')
         .select('*')
         .eq('business_id', businessId)
-        .eq('phone', phoneNumber)
+        .eq('phone', normalizedPhone)
         .maybeSingle();
 
       if (existingCustomer) {
@@ -315,12 +319,14 @@ function PhoneVerificationStep({
     setError('');
 
     try {
+      const normalizedPhone = normalizePhoneNumber(phoneNumber);
+
       const { data: newCustomer, error: customerError } = await supabase
         .from('customers')
         .insert({
           business_id: businessId,
           name: customerName,
-          phone: phoneNumber,
+          phone: normalizedPhone,
           email: customerEmail || null,
           total_visits: 0,
           total_spent: 0
