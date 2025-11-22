@@ -941,6 +941,27 @@ function ConfirmationStep({
     setError('');
 
     try {
+      // Check for double booking: prevent same barber at same time
+      const { data: existingAppointments, error: checkError } = await supabase
+        .from('appointments')
+        .select('id')
+        .eq('business_id', business.id)
+        .eq('appointment_date', selectedDate)
+        .eq('appointment_time', selectedTime)
+        .eq('status', 'scheduled')
+        .eq('barber_id', selectedBarberId);
+
+      if (checkError) {
+        console.error('Error checking for double booking:', checkError);
+        throw new Error('Failed to verify availability');
+      }
+
+      // If any scheduled appointment exists for this barber at this time, block the booking
+      if (existingAppointments && existingAppointments.length > 0) {
+        throw new Error('This time slot is no longer available. Please choose another time.');
+      }
+
+      // Proceed with booking if slot is available
       const { error: appointmentError } = await supabase
         .from('appointments')
         .insert({
