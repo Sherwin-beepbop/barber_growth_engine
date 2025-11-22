@@ -99,7 +99,7 @@ export default function PublicBookingPage() {
       }
 
       // Business exists but online booking is disabled
-      if (businessData.booking_mode === 'internal') {
+      if (businessData.booking_mode === 'internal_only') {
         setError('Online booking is not available for this business');
         setLoading(false);
         return;
