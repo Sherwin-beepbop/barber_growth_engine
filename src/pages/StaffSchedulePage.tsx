@@ -13,7 +13,7 @@ interface WeeklySchedule {
   is_active: boolean;
 }
 
-interface Barber {
+interface StaffMember {
   id: string;
   name: string;
 }
@@ -37,10 +37,10 @@ const DEFAULT_SCHEDULE: WeeklySchedule = {
   is_active: false,
 };
 
-export default function BarberSchedulePage() {
+export default function StaffSchedulePage() {
   const { business } = useBusiness();
-  const [barbers, setBarbers] = useState<Barber[]>([]);
-  const [selectedBarberId, setSelectedBarberId] = useState<string>('');
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
+  const [selectedStaffId, setSelectedStaffId] = useState<string>('');
   const [schedules, setSchedules] = useState<WeeklySchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -49,49 +49,49 @@ export default function BarberSchedulePage() {
 
   useEffect(() => {
     if (business) {
-      loadBarbers();
+      loadStaffMembers();
     }
   }, [business]);
 
   useEffect(() => {
-    if (selectedBarberId) {
+    if (selectedStaffId) {
       loadSchedules();
     }
-  }, [selectedBarberId]);
+  }, [selectedStaffId]);
 
-  const loadBarbers = async () => {
+  const loadStaffMembers = async () => {
     if (!business) return;
 
     try {
       const { data, error } = await supabase
-        .from('barbers')
+        .from('staff_members')
         .select('id, name')
         .eq('business_id', business.id)
         .order('name');
 
       if (error) throw error;
-      setBarbers(data || []);
+      setStaffMembers(data || []);
 
-      if (data && data.length > 0 && !selectedBarberId) {
-        setSelectedBarberId(data[0].id);
+      if (data && data.length > 0 && !selectedStaffId) {
+        setSelectedStaffId(data[0].id);
       }
     } catch (error) {
-      console.error('Error loading barbers:', error);
-      showMessage('error', 'Failed to load barbers');
+      console.error('Error loading staff members:', error);
+      showMessage('error', 'Failed to load staff members');
     } finally {
       setLoading(false);
     }
   };
 
   const loadSchedules = async () => {
-    if (!business || !selectedBarberId) return;
+    if (!business || !selectedStaffId) return;
 
     try {
       const { data, error } = await supabase
-        .from('barber_weekly_schedules')
+        .from('staff_weekly_schedules')
         .select('*')
         .eq('business_id', business.id)
-        .eq('barber_id', selectedBarberId)
+        .eq('staff_id', selectedStaffId)
         .order('weekday');
 
       if (error) throw error;
@@ -129,14 +129,14 @@ export default function BarberSchedulePage() {
   };
 
   const saveSchedules = async () => {
-    if (!business || !selectedBarberId) return;
+    if (!business || !selectedStaffId) return;
 
     setSaving(true);
     try {
       for (const schedule of schedules) {
         if (schedule.id) {
           const { error } = await supabase
-            .from('barber_weekly_schedules')
+            .from('staff_weekly_schedules')
             .update({
               work_start_time: schedule.work_start_time,
               work_end_time: schedule.work_end_time,
@@ -150,10 +150,10 @@ export default function BarberSchedulePage() {
           if (error) throw error;
         } else if (schedule.is_active) {
           const { error } = await supabase
-            .from('barber_weekly_schedules')
+            .from('staff_weekly_schedules')
             .insert({
               business_id: business.id,
-              barber_id: selectedBarberId,
+              staff_id: selectedStaffId,
               weekday: schedule.weekday,
               work_start_time: schedule.work_start_time,
               work_end_time: schedule.work_end_time,
@@ -218,12 +218,12 @@ export default function BarberSchedulePage() {
     );
   }
 
-  if (barbers.length === 0) {
+  if (staffMembers.length === 0) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-        <h3 className="text-lg font-medium text-yellow-900 mb-2">No Barbers Found</h3>
+        <h3 className="text-lg font-medium text-yellow-900 mb-2">No Staff Members Found</h3>
         <p className="text-yellow-700">
-          Please add barbers to your business before setting up schedules.
+          Please add staff members to your business before setting up schedules.
         </p>
       </div>
     );
@@ -233,8 +233,8 @@ export default function BarberSchedulePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Barber Schedule</h1>
-          <p className="text-gray-600 mt-1">Set up weekly recurring schedules for your barbers</p>
+          <h1 className="text-3xl font-bold text-gray-900">Staff Schedule</h1>
+          <p className="text-gray-600 mt-1">Set up weekly recurring schedules for your staff</p>
         </div>
         <Calendar className="w-8 h-8 text-blue-600" />
       </div>
@@ -253,15 +253,15 @@ export default function BarberSchedulePage() {
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Select Barber</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Select Staff Member</label>
           <select
-            value={selectedBarberId}
-            onChange={(e) => setSelectedBarberId(e.target.value)}
+            value={selectedStaffId}
+            onChange={(e) => setSelectedStaffId(e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
-            {barbers.map((barber) => (
-              <option key={barber.id} value={barber.id}>
-                {barber.name}
+            {staffMembers.map((staff) => (
+              <option key={staff.id} value={staff.id}>
+                {staff.name}
               </option>
             ))}
           </select>
@@ -370,7 +370,7 @@ export default function BarberSchedulePage() {
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h3 className="font-medium text-blue-900 mb-2">How it works</h3>
         <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-          <li>Set up a weekly schedule for each barber with work hours and optional breaks</li>
+          <li>Set up a weekly schedule for each staff member with work hours and optional breaks</li>
           <li>Click "Generate Availability" to create availability blocks for the next 30 days</li>
           <li>The system will skip any dates that already have matching availability blocks</li>
           <li>You can still manually add or edit individual availability blocks as needed</li>

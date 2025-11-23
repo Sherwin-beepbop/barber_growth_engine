@@ -66,7 +66,7 @@ export type Database = {
           business_id: string;
           customer_id: string;
           service_id: string;
-          barber_id: string | null;
+          staff_id: string | null;
           appointment_date: string;
           appointment_time: string;
           duration_minutes: number;
@@ -80,7 +80,7 @@ export type Database = {
         Insert: Omit<Database['public']['Tables']['appointments']['Row'], 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Database['public']['Tables']['appointments']['Insert']>;
       };
-      barbers: {
+      staff_members: {
         Row: {
           id: string;
           business_id: string;
@@ -89,14 +89,14 @@ export type Database = {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['barbers']['Row'], 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Database['public']['Tables']['barbers']['Insert']>;
+        Insert: Omit<Database['public']['Tables']['staff_members']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['staff_members']['Insert']>;
       };
       availability_blocks: {
         Row: {
           id: string;
           business_id: string;
-          barber_id: string | null;
+          staff_id: string | null;
           date: string;
           start_time: string;
           end_time: string;
@@ -106,6 +106,23 @@ export type Database = {
         };
         Insert: Omit<Database['public']['Tables']['availability_blocks']['Row'], 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Database['public']['Tables']['availability_blocks']['Insert']>;
+      };
+      staff_weekly_schedules: {
+        Row: {
+          id: string;
+          business_id: string;
+          staff_id: string;
+          weekday: number;
+          work_start_time: string;
+          work_end_time: string;
+          break_start_time: string | null;
+          break_end_time: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['staff_weekly_schedules']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['staff_weekly_schedules']['Insert']>;
       };
       retention_flows: {
         Row: {

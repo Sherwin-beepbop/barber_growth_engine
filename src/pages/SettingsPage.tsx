@@ -4,7 +4,7 @@ import { supabase, Database } from '../lib/supabase';
 import { Save, Plus, Trash2, Globe, Link as LinkIcon, X, Users, ToggleLeft, ToggleRight, Calendar } from 'lucide-react';
 
 type Service = Database['public']['Tables']['services']['Row'];
-type Barber = Database['public']['Tables']['barbers']['Row'];
+type StaffMember = Database['public']['Tables']['staffMembers']['Row'];
 type AvailabilityBlock = Database['public']['Tables']['availability_blocks']['Row'];
 
 export default function SettingsPage() {
@@ -16,7 +16,7 @@ export default function SettingsPage() {
   const [googleReviewUrl, setGoogleReviewUrl] = useState('');
   const [reminderInterval, setReminderInterval] = useState(3);
   const [services, setServices] = useState<Service[]>([]);
-  const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [staffMembers, setBarbers] = useState<StaffMember[]>([]);
   const [availabilityBlocks, setAvailabilityBlocks] = useState<AvailabilityBlock[]>([]);
   const [showNewBarberModal, setShowNewBarberModal] = useState(false);
   const [showNewAvailabilityModal, setShowNewAvailabilityModal] = useState(false);
@@ -52,7 +52,7 @@ export default function SettingsPage() {
     if (!business) return;
 
     const { data } = await supabase
-      .from('barbers')
+      .from('staffMembers')
       .select('*')
       .eq('business_id', business.id)
       .order('created_at');
@@ -146,11 +146,11 @@ export default function SettingsPage() {
     }
   };
 
-  const toggleBarberActive = async (barberId: string, currentActive: boolean) => {
+  const toggleBarberActive = async (staffId: string, currentActive: boolean) => {
     const { error } = await supabase
-      .from('barbers')
+      .from('staffMembers')
       .update({ active: !currentActive })
-      .eq('id', barberId);
+      .eq('id', staffId);
 
     if (!error) {
       fetchBarbers();
@@ -168,10 +168,10 @@ export default function SettingsPage() {
     }
   };
 
-  const getBarberName = (barberId: string | null) => {
-    if (!barberId) return 'All barbers';
-    const barber = barbers.find(b => b.id === barberId);
-    return barber ? barber.name : 'Unknown';
+  const getBarberName = (staffId: string | null) => {
+    if (!staffId) return 'All staffMembers';
+    const staff = staffMembers.find(b => b.id === staffId);
+    return staff ? staff.name : 'Unknown';
   };
 
   const bookingUrl = business && bookingMode === 'online'
@@ -387,32 +387,32 @@ export default function SettingsPage() {
               className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-semibold rounded-lg transition-colors"
             >
               <Plus className="w-5 h-5" />
-              Add Barber
+              Add StaffMember
             </button>
           </div>
 
           <div className="space-y-3">
-            {barbers.map((barber) => (
+            {staffMembers.map((staff) => (
               <div
-                key={barber.id}
+                key={staff.id}
                 className="flex items-center gap-4 p-4 bg-zinc-800 rounded-lg"
               >
                 <div className="flex-1">
-                  <p className="text-white font-medium">{barber.name}</p>
+                  <p className="text-white font-medium">{staff.name}</p>
                   <p className="text-zinc-400 text-sm">
-                    {barber.active ? 'Active' : 'Inactive'}
+                    {staff.active ? 'Active' : 'Inactive'}
                   </p>
                 </div>
 
                 <button
-                  onClick={() => toggleBarberActive(barber.id, barber.active)}
+                  onClick={() => toggleBarberActive(staff.id, staff.active)}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                    barber.active
+                    staff.active
                       ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20'
                       : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'
                   }`}
                 >
-                  {barber.active ? (
+                  {staff.active ? (
                     <>
                       <ToggleRight className="w-5 h-5" />
                       Active
@@ -427,9 +427,9 @@ export default function SettingsPage() {
               </div>
             ))}
 
-            {barbers.length === 0 && (
+            {staffMembers.length === 0 && (
               <p className="text-center text-zinc-400 py-8">
-                No barbers yet. Add your first team member to get started.
+                No staffMembers yet. Add your first team member to get started.
               </p>
             )}
           </div>
@@ -502,7 +502,7 @@ export default function SettingsPage() {
       {showNewAvailabilityModal && (
         <NewAvailabilityModal
           business={business!}
-          barbers={barbers}
+          staffMembers={staffMembers}
           onClose={() => setShowNewAvailabilityModal(false)}
           onSuccess={() => {
             setShowNewAvailabilityModal(false);
@@ -532,7 +532,7 @@ function NewBarberModal({
 
     try {
       const { error } = await supabase
-        .from('barbers')
+        .from('staffMembers')
         .insert({
           business_id: business.id,
           name,
@@ -542,7 +542,7 @@ function NewBarberModal({
       if (error) throw error;
       onSuccess();
     } catch (error) {
-      console.error('Error creating barber:', error);
+      console.error('Error creating staff:', error);
     } finally {
       setLoading(false);
     }
@@ -552,7 +552,7 @@ function NewBarberModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 w-full max-w-md">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-white">Add New Barber</h2>
+          <h2 className="text-xl font-semibold text-white">Add New StaffMember</h2>
           <button onClick={onClose} className="p-1 hover:bg-zinc-800 rounded">
             <X className="w-5 h-5 text-zinc-400" />
           </button>
@@ -561,14 +561,14 @@ function NewBarberModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-2">
-              Barber Name
+              StaffMember Name
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              placeholder="Enter barber's full name"
+              placeholder="Enter staff's full name"
               className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
           </div>
@@ -586,7 +586,7 @@ function NewBarberModal({
               disabled={loading}
               className="flex-1 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-semibold rounded-lg transition-colors disabled:opacity-50"
             >
-              {loading ? 'Adding...' : 'Add Barber'}
+              {loading ? 'Adding...' : 'Add StaffMember'}
             </button>
           </div>
         </form>
@@ -597,16 +597,16 @@ function NewBarberModal({
 
 function NewAvailabilityModal({
   business,
-  barbers,
+  staffMembers,
   onClose,
   onSuccess
 }: {
   business: any;
-  barbers: Barber[];
+  staffMembers: StaffMember[];
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [barberId, setBarberId] = useState<string | null>(null);
+  const [staffId, setBarberId] = useState<string | null>(null);
   const [date, setDate] = useState('');
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('17:00');
@@ -622,7 +622,7 @@ function NewAvailabilityModal({
         .from('availability_blocks')
         .insert({
           business_id: business.id,
-          barber_id: barberId,
+          barber_id: staffId,
           date,
           start_time: startTime,
           end_time: endTime,
@@ -651,17 +651,17 @@ function NewAvailabilityModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-2">
-              Barber
+              StaffMember
             </label>
             <select
-              value={barberId || ''}
+              value={staffId || ''}
               onChange={(e) => setBarberId(e.target.value || null)}
               className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
             >
-              <option value="">All barbers</option>
-              {barbers.filter(b => b.active).map((barber) => (
-                <option key={barber.id} value={barber.id}>
-                  {barber.name}
+              <option value="">All staffMembers</option>
+              {staffMembers.filter(b => b.active).map((staff) => (
+                <option key={staff.id} value={staff.id}>
+                  {staff.name}
                 </option>
               ))}
             </select>

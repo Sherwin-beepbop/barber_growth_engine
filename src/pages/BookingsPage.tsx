@@ -6,19 +6,19 @@ import { Calendar, Plus, ChevronLeft, ChevronRight, Clock, DollarSign, X, Chevro
 type Appointment = Database['public']['Tables']['appointments']['Row'] & {
   customer: { name: string; phone: string } | null;
   service: { name: string } | null;
-  barber: { name: string } | null;
+  staff_member: { name: string } | null;
 };
 
 type Service = Database['public']['Tables']['services']['Row'];
 type Customer = Database['public']['Tables']['customers']['Row'];
-type Barber = Database['public']['Tables']['barbers']['Row'];
+type StaffMember = Database['public']['Tables']['staff_members']['Row'];
 
 export default function BookingsPage() {
   const { business } = useBusiness();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showNewAppointment, setShowNewAppointment] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -46,7 +46,7 @@ export default function BookingsPage() {
           *,
           customer:customers(name, phone),
           service:services(name),
-          barber:barbers(name)
+          staff_member:staff_members(name)
         `)
         .eq('business_id', business.id)
         .eq('appointment_date', dateStr)
@@ -64,8 +64,8 @@ export default function BookingsPage() {
         .eq('business_id', business.id)
         .order('name');
 
-      const { data: barbersData } = await supabase
-        .from('barbers')
+      const { data: staffData } = await supabase
+        .from('staff_members')
         .select('*')
         .eq('business_id', business.id)
         .eq('active', true)
@@ -74,7 +74,7 @@ export default function BookingsPage() {
       setAppointments((appointmentsData as Appointment[]) || []);
       setServices(servicesData || []);
       setCustomers(customersData || []);
-      setBarbers(barbersData || []);
+      setStaffMembers(staffData || []);
     } catch (error) {
       console.error('Error fetching bookings data:', error);
     } finally {
@@ -226,8 +226,8 @@ export default function BookingsPage() {
                   <p className="text-white font-medium">{appointment.customer?.name}</p>
                   <p className="text-zinc-400 text-sm">
                     {appointment.service?.name}
-                    {appointment.barber && (
-                      <span className="ml-2 text-zinc-500">· {appointment.barber.name}</span>
+                    {appointment.staff_member && (
+                      <span className="ml-2 text-zinc-500">· {appointment.staff_member.name}</span>
                     )}
                   </p>
                 </div>
@@ -282,7 +282,7 @@ export default function BookingsPage() {
           business={business!}
           services={services}
           customers={customers}
-          barbers={barbers}
+          staffMembers={staffMembers}
           selectedDate={selectedDate}
           onClose={() => setShowNewAppointment(false)}
           onSuccess={() => {
@@ -299,7 +299,7 @@ function NewAppointmentModal({
   business,
   services,
   customers,
-  barbers,
+  staffMembers,
   selectedDate,
   onClose,
   onSuccess
@@ -307,14 +307,14 @@ function NewAppointmentModal({
   business: any;
   services: Service[];
   customers: Customer[];
-  barbers: Barber[];
+  staffMembers: StaffMember[];
   selectedDate: Date;
   onClose: () => void;
   onSuccess: () => void;
 }) {
   const [customerId, setCustomerId] = useState('');
   const [serviceId, setServiceId] = useState('');
-  const [barberId, setBarberId] = useState('');
+  const [staffId, setStaffId] = useState('');
   const [time, setTime] = useState('');
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -322,16 +322,16 @@ function NewAppointmentModal({
   const [timeSlotsError, setTimeSlotsError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (barberId && serviceId) {
+    if (staffId && serviceId) {
       fetchAvailableTimeSlots();
     } else {
       setAvailableTimeSlots([]);
       setTime('');
     }
-  }, [barberId, serviceId, selectedDate]);
+  }, [staffId, serviceId, selectedDate]);
 
   const fetchAvailableTimeSlots = async () => {
-    if (!barberId || !serviceId) return;
+    if (!staffId || !serviceId) return;
 
     setLoadingSlots(true);
     setTimeSlotsError(null);
@@ -347,7 +347,7 @@ function NewAppointmentModal({
 
       const { data, error } = await supabase.rpc('generate_free_time_slots', {
         p_business_id: business.id,
-        p_barber_id: barberId,
+        p_staff_id: staffId,
         p_date: dateStr,
         p_service_duration: selectedService.duration_minutes
       });
@@ -389,7 +389,7 @@ function NewAppointmentModal({
           business_id: business.id,
           customer_id: customerId,
           service_id: serviceId,
-          barber_id: barberId,
+          staff_id: staffId,
           appointment_date: dateStr,
           appointment_time: time,
           duration_minutes: selectedService?.duration_minutes || 30,
@@ -457,18 +457,18 @@ function NewAppointmentModal({
 
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-2">
-              Barber
+              Staff Member
             </label>
             <select
-              value={barberId}
-              onChange={(e) => setBarberId(e.target.value)}
+              value={staffId}
+              onChange={(e) => setStaffId(e.target.value)}
               required
               className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
             >
-              <option value="">Select barber</option>
-              {barbers.map(barber => (
-                <option key={barber.id} value={barber.id}>
-                  {barber.name}
+              <option value="">Select staff member</option>
+              {staffMembers.map(staff => (
+                <option key={staff.id} value={staff.id}>
+                  {staff.name}
                 </option>
               ))}
             </select>
@@ -496,13 +496,13 @@ function NewAppointmentModal({
                   </option>
                 ))}
               </select>
-            ) : barberId && serviceId ? (
+            ) : staffId && serviceId ? (
               <div className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-400">
                 No available times for this day
               </div>
             ) : (
               <div className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-400">
-                Select barber and service first
+                Select staff member and service first
               </div>
             )}
             {timeSlotsError && (

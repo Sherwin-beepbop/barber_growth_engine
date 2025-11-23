@@ -5,7 +5,7 @@ import { Scissors, Check, X, Phone, Users, Calendar, Clock, ChevronRight, Chevro
 
 type Business = Database['public']['Tables']['businesses']['Row'];
 type Service = Database['public']['Tables']['services']['Row'];
-type Barber = Database['public']['Tables']['barbers']['Row'];
+type StaffMember = Database['public']['Tables']['staff_members']['Row'];
 type Customer = Database['public']['Tables']['customers']['Row'];
 type AvailabilityBlock = Database['public']['Tables']['availability_blocks']['Row'];
 type Appointment = Database['public']['Tables']['appointments']['Row'];
@@ -108,7 +108,7 @@ export default function PublicBookingPage() {
 
   const [business, setBusiness] = useState<Business | null>(null);
   const [services, setServices] = useState<Service[]>([]);
-  const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -118,7 +118,7 @@ export default function PublicBookingPage() {
   const [customerFirstName, setCustomerFirstName] = useState('');
   const [customerLastName, setCustomerLastName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
-  const [selectedBarberId, setSelectedBarberId] = useState<string | null>(null);
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
@@ -169,7 +169,7 @@ export default function PublicBookingPage() {
         return;
       }
 
-      // Fetch services and barbers
+      // Fetch services and staff members
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select('*')
@@ -177,16 +177,16 @@ export default function PublicBookingPage() {
         .eq('active', true)
         .order('price');
 
-      const { data: barbersData, error: barbersError } = await supabase
-        .from('barbers')
+      const { data: staffData, error: staffError } = await supabase
+        .from('staff_members')
         .select('*')
         .eq('business_id', businessId)
         .eq('active', true)
         .order('name');
 
-      // Handle errors in fetching services/barbers
-      if (servicesError || barbersError) {
-        console.error('Error fetching services/barbers:', servicesError || barbersError);
+      // Handle errors in fetching services/staff
+      if (servicesError || staffError) {
+        console.error('Error fetching services/staff:', servicesError || staffError);
         setError('Failed to load booking information');
         setLoading(false);
         return;
@@ -195,7 +195,7 @@ export default function PublicBookingPage() {
       // Success: set all data
       setBusiness(businessData);
       setServices(servicesData || []);
-      setBarbers(barbersData || []);
+      setStaffMembers(staffData || []);
       setLoading(false);
     } catch (err) {
       // Catch any unexpected errors
@@ -302,7 +302,7 @@ export default function PublicBookingPage() {
           </div>
           <div className="flex justify-between mt-2 text-xs text-zinc-500">
             <span>Phone</span>
-            <span>Barber</span>
+            <span>Staff</span>
             <span>Date</span>
             <span>Time</span>
             <span>Confirm</span>
@@ -329,11 +329,11 @@ export default function PublicBookingPage() {
           )}
 
           {currentStep === 2 && (
-            <BarberSelectionStep
-              barbers={barbers}
+            <StaffSelectionStep
+              staffMembers={staffMembers}
               businessId={businessId}
-              selectedBarberId={selectedBarberId}
-              setSelectedBarberId={setSelectedBarberId}
+              selectedStaffId={selectedStaffId}
+              setSelectedStaffId={setSelectedStaffId}
               onNext={() => setCurrentStep(3)}
               onBack={() => setCurrentStep(1)}
             />
@@ -352,7 +352,7 @@ export default function PublicBookingPage() {
           {currentStep === 4 && (
             <DateTimeSelectionStep
               businessId={businessId}
-              barberId={selectedBarberId}
+              staffId={selectedStaffId}
               service={selectedService!}
               selectedDate={selectedDate}
               setSelectedDate={setSelectedDate}
@@ -367,8 +367,8 @@ export default function PublicBookingPage() {
             <ConfirmationStep
               business={business!}
               customer={customer!}
-              barbers={barbers}
-              selectedBarberId={selectedBarberId}
+              staffMembers={staffMembers}
+              selectedStaffId={selectedStaffId}
               selectedService={selectedService!}
               selectedDate={selectedDate}
               selectedTime={selectedTime}
@@ -584,18 +584,18 @@ function PhoneVerificationStep({
   );
 }
 
-function BarberSelectionStep({
-  barbers,
+function StaffSelectionStep({
+  staffMembers,
   businessId,
-  selectedBarberId,
-  setSelectedBarberId,
+  selectedStaffId,
+  setSelectedStaffId,
   onNext,
   onBack
 }: {
-  barbers: Barber[];
+  staffMembers: StaffMember[];
   businessId: string;
-  selectedBarberId: string | null;
-  setSelectedBarberId: (id: string | null) => void;
+  selectedStaffId: string | null;
+  setSelectedStaffId: (id: string | null) => void;
   onNext: () => void;
   onBack: () => void;
 }) {
@@ -610,7 +610,7 @@ function BarberSelectionStep({
       .from('availability_blocks')
       .select('id')
       .eq('business_id', businessId)
-      .is('barber_id', null)
+      .is('staff_id', null)
       .limit(1);
 
     setHasAnyBarberSlots((data?.length || 0) > 0);
@@ -621,10 +621,10 @@ function BarberSelectionStep({
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Users className="w-5 h-5 text-amber-500" />
-          <h2 className="text-xl font-semibold text-white">Choose Your Barber</h2>
+          <h2 className="text-xl font-semibold text-white">Choose Staff Member</h2>
         </div>
         <p className="text-zinc-400 text-sm">
-          Select a barber or choose "No preference" for the first available.
+          Select a staff member or choose "No preference" for the first available.
         </p>
       </div>
 
@@ -632,30 +632,30 @@ function BarberSelectionStep({
         {hasAnyBarberSlots && (
           <button
             type="button"
-            onClick={() => setSelectedBarberId(null)}
+            onClick={() => setSelectedStaffId(null)}
             className={`w-full p-4 rounded-lg border-2 text-left transition-colors ${
-              selectedBarberId === null
+              selectedStaffId === null
                 ? 'border-amber-500 bg-amber-500/10'
                 : 'border-zinc-700 bg-zinc-800 hover:border-zinc-600'
             }`}
           >
             <p className="text-white font-medium">No Preference</p>
-            <p className="text-zinc-400 text-sm">Any available barber</p>
+            <p className="text-zinc-400 text-sm">Any available staff</p>
           </button>
         )}
 
-        {barbers.map((barber) => (
+        {staffMembers.map((staff) => (
           <button
-            key={barber.id}
+            key={staff.id}
             type="button"
-            onClick={() => setSelectedBarberId(barber.id)}
+            onClick={() => setSelectedStaffId(staff.id)}
             className={`w-full p-4 rounded-lg border-2 text-left transition-colors ${
-              selectedBarberId === barber.id
+              selectedStaffId === staff.id
                 ? 'border-amber-500 bg-amber-500/10'
                 : 'border-zinc-700 bg-zinc-800 hover:border-zinc-600'
             }`}
           >
-            <p className="text-white font-medium">{barber.name}</p>
+            <p className="text-white font-medium">{staff.name}</p>
           </button>
         ))}
       </div>
@@ -670,7 +670,7 @@ function BarberSelectionStep({
         </button>
         <button
           onClick={onNext}
-          disabled={selectedBarberId === undefined}
+          disabled={selectedStaffId === undefined}
           className="flex-1 flex items-center justify-center gap-2 py-3 px-6 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-semibold rounded-lg transition-colors disabled:opacity-50"
         >
           Continue
@@ -753,7 +753,7 @@ function ServiceSelectionStep({
 
 function DateTimeSelectionStep({
   businessId,
-  barberId,
+  staffId,
   service,
   selectedDate,
   setSelectedDate,
@@ -763,7 +763,7 @@ function DateTimeSelectionStep({
   onBack
 }: {
   businessId: string;
-  barberId: string | null;
+  staffId: string | null;
   service: Service;
   selectedDate: string;
   setSelectedDate: (date: string) => void;
@@ -809,13 +809,13 @@ function DateTimeSelectionStep({
 
   useEffect(() => {
     fetchAvailableDates();
-  }, [businessId, barberId]);
+  }, [businessId, staffId]);
 
   useEffect(() => {
     if (selectedDate) {
       fetchAvailableTimeSlots();
     }
-  }, [selectedDate, businessId, barberId]);
+  }, [selectedDate, businessId, staffId]);
 
   useEffect(() => {
     if (weekGroups.length > 0 && selectedDate) {
@@ -840,10 +840,10 @@ function DateTimeSelectionStep({
         .eq('business_id', businessId)
         .gte('date', today);
 
-      if (barberId) {
-        query = query.eq('barber_id', barberId);
+      if (staffId) {
+        query = query.eq('staff_id', staffId);
       } else {
-        query = query.is('barber_id', null);
+        query = query.is('staff_id', null);
       }
 
       const { data } = await query;
@@ -858,7 +858,7 @@ function DateTimeSelectionStep({
   };
 
   const fetchAvailableTimeSlots = async () => {
-    if (!barberId) {
+    if (!staffId) {
       setAvailableTimeSlots([]);
       return;
     }
@@ -868,7 +868,7 @@ function DateTimeSelectionStep({
     try {
       const { data, error } = await supabase.rpc('generate_free_time_slots', {
         p_business_id: businessId,
-        p_barber_id: barberId,
+        p_staff_id: staffId,
         p_date: selectedDate,
         p_service_duration: service.duration_minutes
       });
@@ -949,7 +949,7 @@ function DateTimeSelectionStep({
         </div>
         {availableDates.length === 0 && (
           <p className="text-zinc-400 text-sm mt-2">
-            No available dates. Please choose a different barber.
+            No available dates. Please choose a different staff.
           </p>
         )}
         {weekGroups.length > 1 && (
@@ -1038,8 +1038,8 @@ function DateTimeSelectionStep({
 function ConfirmationStep({
   business,
   customer,
-  barbers,
-  selectedBarberId,
+  staffMembers,
+  selectedStaffId,
   selectedService,
   selectedDate,
   selectedTime,
@@ -1048,8 +1048,8 @@ function ConfirmationStep({
 }: {
   business: Business;
   customer: Customer;
-  barbers: Barber[];
-  selectedBarberId: string | null;
+  staffMembers: StaffMember[];
+  selectedStaffId: string | null;
   selectedService: Service;
   selectedDate: string;
   selectedTime: string;
@@ -1059,16 +1059,16 @@ function ConfirmationStep({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const barberName = selectedBarberId
-    ? barbers.find(b => b.id === selectedBarberId)?.name || 'Unknown'
-    : 'Any available barber';
+  const barberName = selectedStaffId
+    ? staffMembers.find(b => b.id === selectedStaffId)?.name || 'Unknown'
+    : 'Any available staff';
 
   const handleConfirm = async () => {
     setSubmitting(true);
     setError('');
 
     try {
-      // Check for double booking: prevent same barber at same time
+      // Check for double booking: prevent same staff at same time
       const { data: existingAppointments, error: checkError } = await supabase
         .from('appointments')
         .select('id')
@@ -1076,14 +1076,14 @@ function ConfirmationStep({
         .eq('appointment_date', selectedDate)
         .eq('appointment_time', selectedTime)
         .eq('status', 'scheduled')
-        .eq('barber_id', selectedBarberId);
+        .eq('staff_id', selectedStaffId);
 
       if (checkError) {
         console.error('Error checking for double booking:', checkError);
         throw new Error('Failed to verify availability');
       }
 
-      // If any scheduled appointment exists for this barber at this time, block the booking
+      // If any scheduled appointment exists for this staff at this time, block the booking
       if (existingAppointments && existingAppointments.length > 0) {
         throw new Error('This time slot is no longer available. Please choose another time.');
       }
@@ -1094,7 +1094,7 @@ function ConfirmationStep({
         .insert({
           business_id: business.id,
           customer_id: customer.id,
-          barber_id: selectedBarberId,
+          staff_id: selectedStaffId,
           service_id: selectedService.id,
           appointment_date: selectedDate,
           appointment_time: selectedTime,
@@ -1137,7 +1137,7 @@ function ConfirmationStep({
         </div>
         <div className="border-t border-zinc-700 pt-3 mt-3"></div>
         <div className="flex justify-between">
-          <span className="text-zinc-400">Barber:</span>
+          <span className="text-zinc-400">Staff Member:</span>
           <span className="text-white font-medium">{barberName}</span>
         </div>
         <div className="flex justify-between">
