@@ -359,7 +359,9 @@ function NewAppointmentModal({
         return;
       }
 
-      setAvailableTimeSlots(data?.free_slots || []);
+      const freeSlots = (data?.free_slots ?? []) as string[];
+      const uniqueSortedSlots = Array.from(new Set(freeSlots)).sort((a, b) => a.localeCompare(b));
+      setAvailableTimeSlots(uniqueSortedSlots);
     } catch (err: any) {
       console.error('Error fetching time slots:', err);
       setTimeSlotsError(`Time slot error: ${err.message || 'Unknown error'}`);

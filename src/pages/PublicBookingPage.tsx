@@ -47,14 +47,45 @@ function getISOWeek(date: Date): { year: number; week: number } {
   return { year: tempDate.getFullYear(), week };
 }
 
-function formatDateRange(startDateString: string, endDateString: string): string {
-  const [startYear, startMonth, startDay] = startDateString.split('-').map(Number);
-  const [endYear, endMonth, endDay] = endDateString.split('-').map(Number);
-  const startDate = new Date(startYear, startMonth - 1, startDay);
-  const endDate = new Date(endYear, endMonth - 1, endDay);
+function getISOWeekRange(year: number, week: number): { start: Date; end: Date } {
+  const jan4 = new Date(year, 0, 4);
+  const jan4Day = (jan4.getDay() + 6) % 7;
+  const mondayOfWeek1 = new Date(jan4.getTime());
+  mondayOfWeek1.setDate(jan4.getDate() - jan4Day);
+
+  const targetMonday = new Date(mondayOfWeek1.getTime());
+  targetMonday.setDate(mondayOfWeek1.getDate() + (week - 1) * 7);
+
+  const targetSunday = new Date(targetMonday.getTime());
+  targetSunday.setDate(targetMonday.getDate() + 6);
+
+  return { start: targetMonday, end: targetSunday };
+}
+
+function formatDateRange(start: string | Date, end: string | Date): string {
+  let startDate: Date;
+  let endDate: Date;
+
+  if (typeof start === 'string') {
+    const [startYear, startMonth, startDay] = start.split('-').map(Number);
+    startDate = new Date(startYear, startMonth - 1, startDay);
+  } else {
+    startDate = start;
+  }
+
+  if (typeof end === 'string') {
+    const [endYear, endMonth, endDay] = end.split('-').map(Number);
+    endDate = new Date(endYear, endMonth - 1, endDay);
+  } else {
+    endDate = end;
+  }
 
   const startDayNum = startDate.getDate();
   const endDayNum = endDate.getDate();
+  const startMonth = startDate.getMonth();
+  const endMonth = endDate.getMonth();
+  const startYear = startDate.getFullYear();
+  const endYear = endDate.getFullYear();
   const endMonthName = endDate.toLocaleDateString('nl-NL', { month: 'short' });
 
   if (startMonth === endMonth && startYear === endYear) {
@@ -850,8 +881,8 @@ function DateTimeSelectionStep({
       }
 
       const freeSlots = (data?.free_slots ?? []) as string[];
-      const freeSlotsSorted = [...freeSlots].sort((a, b) => a.localeCompare(b));
-      setAvailableTimeSlots(freeSlotsSorted);
+      const uniqueSortedSlots = Array.from(new Set(freeSlots)).sort((a, b) => a.localeCompare(b));
+      setAvailableTimeSlots(uniqueSortedSlots);
     } catch (err: any) {
       console.error('Error fetching time slots:', err);
       setTimeSlotsError(`Time slot error: ${err.message || 'Unknown error'}`);
@@ -886,11 +917,14 @@ function DateTimeSelectionStep({
           <label className="block text-sm font-medium text-zinc-300">
             Select Date
           </label>
-          {currentWeek && (
-            <span className="text-xs text-zinc-400">
-              Week {currentWeek.week} ({formatDateRange(currentWeek.dates[0], currentWeek.dates[currentWeek.dates.length - 1])})
-            </span>
-          )}
+          {currentWeek && (() => {
+            const weekRange = getISOWeekRange(currentWeek.year, currentWeek.week);
+            return (
+              <span className="text-xs text-zinc-400">
+                Week {currentWeek.week} ({formatDateRange(weekRange.start, weekRange.end)})
+              </span>
+            );
+          })()}
         </div>
         <div className="grid grid-cols-3 gap-2">
           {currentWeek?.dates.map((date) => (
