@@ -5,6 +5,7 @@ import AuthPage from './pages/AuthPage';
 import OnboardingPage from './pages/OnboardingPage';
 import DashboardPage from './pages/DashboardPage';
 import BookingsPage from './pages/BookingsPage';
+import BarberSchedulePage from './pages/BarberSchedulePage';
 import CustomersPage from './pages/CustomersPage';
 import RetentionPage from './pages/RetentionPage';
 import MessagesPage from './pages/MessagesPage';
@@ -42,6 +43,8 @@ function AppContent() {
         return <DashboardPage />;
       case 'bookings':
         return <BookingsPage />;
+      case 'schedule':
+        return <BarberSchedulePage />;
       case 'customers':
         return <CustomersPage />;
       case 'retention':

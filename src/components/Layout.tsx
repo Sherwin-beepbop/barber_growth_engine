@@ -8,7 +8,8 @@ import {
   Settings,
   LogOut,
   Scissors,
-  MessageSquare
+  MessageSquare,
+  Clock
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useBusiness } from '../contexts/BusinessContext';
@@ -22,6 +23,7 @@ interface LayoutProps {
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'bookings', label: 'Bookings', icon: Calendar },
+  { id: 'schedule', label: 'Barber Schedule', icon: Clock },
   { id: 'customers', label: 'Customers', icon: Users },
   { id: 'retention', label: 'Retention Engine', icon: Repeat },
   { id: 'messages', label: 'Messages Log', icon: MessageSquare },
