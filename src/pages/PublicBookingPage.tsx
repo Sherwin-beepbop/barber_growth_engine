@@ -708,10 +708,12 @@ function DateTimeSelectionStep({
   onNext: () => void;
   onBack: () => void;
 }) {
+  const PAGE_SIZE = 7;
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeSlotsError, setTimeSlotsError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);
 
   useEffect(() => {
     fetchAvailableDates();
@@ -722,6 +724,18 @@ function DateTimeSelectionStep({
       fetchAvailableTimeSlots();
     }
   }, [selectedDate, businessId, barberId]);
+
+  useEffect(() => {
+    if (availableDates.length > 0 && selectedDate) {
+      const selectedDateIndex = availableDates.indexOf(selectedDate);
+      if (selectedDateIndex !== -1) {
+        const pageContainingSelectedDate = Math.floor(selectedDateIndex / PAGE_SIZE);
+        setCurrentPage(pageContainingSelectedDate);
+      }
+    } else if (availableDates.length > 0 && !selectedDate) {
+      setCurrentPage(0);
+    }
+  }, [availableDates, selectedDate]);
 
   const fetchAvailableDates = async () => {
     setLoading(true);
@@ -792,6 +806,12 @@ function DateTimeSelectionStep({
     );
   }
 
+  const totalPages = Math.ceil(availableDates.length / PAGE_SIZE);
+  const pagedDates = availableDates.slice(
+    currentPage * PAGE_SIZE,
+    (currentPage + 1) * PAGE_SIZE
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -806,7 +826,7 @@ function DateTimeSelectionStep({
           Select Date
         </label>
         <div className="grid grid-cols-3 gap-2">
-          {availableDates.map((date) => (
+          {pagedDates.map((date) => (
             <button
               key={date}
               type="button"
@@ -830,6 +850,31 @@ function DateTimeSelectionStep({
           <p className="text-zinc-400 text-sm mt-2">
             No available dates. Please choose a different barber.
           </p>
+        )}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+              disabled={currentPage === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Previous
+            </button>
+            <span className="text-zinc-400 text-sm">
+              Week {currentPage + 1} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={currentPage >= totalPages - 1}
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Next
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         )}
       </div>
 
