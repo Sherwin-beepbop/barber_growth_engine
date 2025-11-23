@@ -38,7 +38,7 @@ const DEFAULT_SCHEDULE: WeeklySchedule = {
 };
 
 export default function BarberSchedulePage() {
-  const { currentBusiness } = useBusiness();
+  const { business } = useBusiness();
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [selectedBarberId, setSelectedBarberId] = useState<string>('');
   const [schedules, setSchedules] = useState<WeeklySchedule[]>([]);
@@ -48,10 +48,10 @@ export default function BarberSchedulePage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    if (currentBusiness) {
+    if (business) {
       loadBarbers();
     }
-  }, [currentBusiness]);
+  }, [business]);
 
   useEffect(() => {
     if (selectedBarberId) {
@@ -60,13 +60,13 @@ export default function BarberSchedulePage() {
   }, [selectedBarberId]);
 
   const loadBarbers = async () => {
-    if (!currentBusiness) return;
+    if (!business) return;
 
     try {
       const { data, error } = await supabase
         .from('barbers')
         .select('id, name')
-        .eq('business_id', currentBusiness.id)
+        .eq('business_id', business.id)
         .order('name');
 
       if (error) throw error;
@@ -84,13 +84,13 @@ export default function BarberSchedulePage() {
   };
 
   const loadSchedules = async () => {
-    if (!currentBusiness || !selectedBarberId) return;
+    if (!business || !selectedBarberId) return;
 
     try {
       const { data, error } = await supabase
         .from('barber_weekly_schedules')
         .select('*')
-        .eq('business_id', currentBusiness.id)
+        .eq('business_id', business.id)
         .eq('barber_id', selectedBarberId)
         .order('weekday');
 
@@ -129,7 +129,7 @@ export default function BarberSchedulePage() {
   };
 
   const saveSchedules = async () => {
-    if (!currentBusiness || !selectedBarberId) return;
+    if (!business || !selectedBarberId) return;
 
     setSaving(true);
     try {
@@ -152,7 +152,7 @@ export default function BarberSchedulePage() {
           const { error } = await supabase
             .from('barber_weekly_schedules')
             .insert({
-              business_id: currentBusiness.id,
+              business_id: business.id,
               barber_id: selectedBarberId,
               weekday: schedule.weekday,
               work_start_time: schedule.work_start_time,
@@ -177,7 +177,7 @@ export default function BarberSchedulePage() {
   };
 
   const generateAvailability = async () => {
-    if (!currentBusiness) return;
+    if (!business) return;
 
     setSyncing(true);
     try {
@@ -186,7 +186,7 @@ export default function BarberSchedulePage() {
       endDate.setDate(today.getDate() + 30);
 
       const { data, error } = await supabase.rpc('sync_barber_schedules_to_availability', {
-        p_business_id: currentBusiness.id,
+        p_business_id: business.id,
         p_start_date: today.toISOString().split('T')[0],
         p_end_date: endDate.toISOString().split('T')[0],
       });
