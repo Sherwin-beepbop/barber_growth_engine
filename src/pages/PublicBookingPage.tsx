@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase, Database } from '../lib/supabase';
 import { normalizePhoneNumber } from '../lib/phoneUtils';
 import { Scissors, Check, X, Phone, Users, Calendar, Clock, ChevronRight, ChevronLeft } from 'lucide-react';
@@ -36,6 +36,39 @@ function formatDateForDisplay(dateString: string, format: 'short' | 'long' = 'lo
     month: 'long',
     year: 'numeric'
   });
+}
+
+function getISOWeek(date: Date): { year: number; week: number } {
+  const tempDate = new Date(date.getTime());
+  tempDate.setHours(0, 0, 0, 0);
+  tempDate.setDate(tempDate.getDate() + 3 - ((tempDate.getDay() + 6) % 7));
+  const week1 = new Date(tempDate.getFullYear(), 0, 4);
+  const week = 1 + Math.round(((tempDate.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+  return { year: tempDate.getFullYear(), week };
+}
+
+function formatDateRange(startDateString: string, endDateString: string): string {
+  const [startYear, startMonth, startDay] = startDateString.split('-').map(Number);
+  const [endYear, endMonth, endDay] = endDateString.split('-').map(Number);
+  const startDate = new Date(startYear, startMonth - 1, startDay);
+  const endDate = new Date(endYear, endMonth - 1, endDay);
+
+  const startDayNum = startDate.getDate();
+  const endDayNum = endDate.getDate();
+  const endMonthName = endDate.toLocaleDateString('nl-NL', { month: 'short' });
+
+  if (startMonth === endMonth && startYear === endYear) {
+    return `${startDayNum}–${endDayNum} ${endMonthName}`;
+  }
+
+  const startMonthName = startDate.toLocaleDateString('nl-NL', { month: 'short' });
+  return `${startDayNum} ${startMonthName} – ${endDayNum} ${endMonthName}`;
+}
+
+interface WeekGroup {
+  year: number;
+  week: number;
+  dates: string[];
 }
 
 export default function PublicBookingPage() {
@@ -708,12 +741,40 @@ function DateTimeSelectionStep({
   onNext: () => void;
   onBack: () => void;
 }) {
-  const PAGE_SIZE = 7;
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeSlotsError, setTimeSlotsError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
+
+  const weekGroups = React.useMemo(() => {
+    const sortedDates = [...availableDates].sort((a, b) => {
+      const da = new Date(a);
+      const db = new Date(b);
+      return da.getTime() - db.getTime();
+    });
+
+    const groupsMap = new Map<string, WeekGroup>();
+
+    sortedDates.forEach((dateStr) => {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      const { year: isoYear, week: isoWeek } = getISOWeek(date);
+      const key = `${isoYear}-W${isoWeek}`;
+
+      if (!groupsMap.has(key)) {
+        groupsMap.set(key, {
+          year: isoYear,
+          week: isoWeek,
+          dates: [],
+        });
+      }
+
+      groupsMap.get(key)!.dates.push(dateStr);
+    });
+
+    return Array.from(groupsMap.values());
+  }, [availableDates]);
 
   useEffect(() => {
     fetchAvailableDates();
@@ -726,16 +787,17 @@ function DateTimeSelectionStep({
   }, [selectedDate, businessId, barberId]);
 
   useEffect(() => {
-    if (availableDates.length > 0 && selectedDate) {
-      const selectedDateIndex = availableDates.indexOf(selectedDate);
-      if (selectedDateIndex !== -1) {
-        const pageContainingSelectedDate = Math.floor(selectedDateIndex / PAGE_SIZE);
-        setCurrentPage(pageContainingSelectedDate);
+    if (weekGroups.length > 0 && selectedDate) {
+      const weekIndexWithSelectedDate = weekGroups.findIndex((group) =>
+        group.dates.includes(selectedDate)
+      );
+      if (weekIndexWithSelectedDate !== -1) {
+        setCurrentWeekIndex(weekIndexWithSelectedDate);
       }
-    } else if (availableDates.length > 0 && !selectedDate) {
-      setCurrentPage(0);
+    } else if (weekGroups.length > 0 && !selectedDate) {
+      setCurrentWeekIndex(0);
     }
-  }, [availableDates, selectedDate]);
+  }, [weekGroups, selectedDate]);
 
   const fetchAvailableDates = async () => {
     setLoading(true);
@@ -787,7 +849,9 @@ function DateTimeSelectionStep({
         return;
       }
 
-      setAvailableTimeSlots(data?.free_slots || []);
+      const freeSlots = (data?.free_slots ?? []) as string[];
+      const freeSlotsSorted = [...freeSlots].sort((a, b) => a.localeCompare(b));
+      setAvailableTimeSlots(freeSlotsSorted);
     } catch (err: any) {
       console.error('Error fetching time slots:', err);
       setTimeSlotsError(`Time slot error: ${err.message || 'Unknown error'}`);
@@ -806,11 +870,7 @@ function DateTimeSelectionStep({
     );
   }
 
-  const totalPages = Math.ceil(availableDates.length / PAGE_SIZE);
-  const pagedDates = availableDates.slice(
-    currentPage * PAGE_SIZE,
-    (currentPage + 1) * PAGE_SIZE
-  );
+  const currentWeek = weekGroups[currentWeekIndex] ?? null;
 
   return (
     <div className="space-y-6">
@@ -822,11 +882,18 @@ function DateTimeSelectionStep({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-zinc-300 mb-3">
-          Select Date
-        </label>
+        <div className="flex items-center justify-between mb-3">
+          <label className="block text-sm font-medium text-zinc-300">
+            Select Date
+          </label>
+          {currentWeek && (
+            <span className="text-xs text-zinc-400">
+              Week {currentWeek.week} ({formatDateRange(currentWeek.dates[0], currentWeek.dates[currentWeek.dates.length - 1])})
+            </span>
+          )}
+        </div>
         <div className="grid grid-cols-3 gap-2">
-          {pagedDates.map((date) => (
+          {currentWeek?.dates.map((date) => (
             <button
               key={date}
               type="button"
@@ -851,27 +918,27 @@ function DateTimeSelectionStep({
             No available dates. Please choose a different barber.
           </p>
         )}
-        {totalPages > 1 && (
+        {weekGroups.length > 1 && (
           <div className="flex items-center justify-between mt-4">
             <button
               type="button"
-              onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
-              disabled={currentPage === 0}
+              onClick={() => setCurrentWeekIndex((i) => Math.max(0, i - 1))}
+              disabled={currentWeekIndex <= 0}
               className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <ChevronLeft className="w-4 h-4" />
-              Previous
+              Previous week
             </button>
             <span className="text-zinc-400 text-sm">
-              Week {currentPage + 1} of {totalPages}
+              {currentWeekIndex + 1} of {weekGroups.length}
             </span>
             <button
               type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
-              disabled={currentPage >= totalPages - 1}
+              onClick={() => setCurrentWeekIndex((i) => Math.min(weekGroups.length - 1, i + 1))}
+              disabled={currentWeekIndex >= weekGroups.length - 1}
               className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              Next
+              Next week
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
